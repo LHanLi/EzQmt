@@ -3,17 +3,30 @@ import datetime, re, time, copy
 import numpy as np
 import pandas as pd
 
-# 8:30读取策略目标权重,确定标的买卖方向
-# 输入文件格式为 code，权重
-# 对于不在code中的持仓视为清仓
-# 挂单价选为中间价和最新价中对交易方向有利的，挂单量选为剩余挂单轮次平均提交和每次最小挂单量之间高者。
-# end 交易结束时间
-# 第一次交易结束后，只买不卖，将不足目标比例的标的调整到目标比例。 结束时间end2
-# summary_time 输出成交张数
+# 1.  每交易日9:00读取策略目标权重, 如果没有目标权重文件则跳过当天交易,extract_list中标的不参与交易。
+#         策略目标权重文件格式为 code，权重, 需包含全部持仓，对于不在code中的持仓视为清仓
+#         文件名为日期+'-'+strat_file_name(例如，2024-01-11-strat_adv.txt, 放置于strat_file_loc目录下
+# 如果没有此文件则跳过当天交易。
+# 2.  start(9:30)读取持有仓位市值,与目标权重比较，确定标的买卖方向
+# 3.  每隔interval(5s)，检查当前持仓与目标持仓差距，如果小于目标仓位挂买单，大于目标仓位则挂买单，买卖单按照
+# 最小变动金额拆单，计算当前剩余可挂单次数，均匀挂单。
+#         每次挂单比较当前持仓比例与目标比例差距，如果:
+#           a.与目标仓位的金额差距小于最小变动金额的一半;
+#           b.超卖、超买;
+#           c.完全卖出该标的。 
+#               则完成此标的交易
+#         每秒检查当前挂单，如果：
+#           a. 订单存在超过wait_dur(9s)未成;
+#           b. 挂单价格在最新买3卖3之外。
+#               则撤单
+# 4. 所有标的完成交易后，可能会有剩余现金，重复3，只买入不卖出。 如果没有在end（9：55）之前完成所有标的交易（可以
+# 通过调整挂单激进度，轮询间隔，立即
+# 进入只买入不卖出阶段，end2（10：00）前结束。
+# 5.  summary_time(151000)总结成交张数，输出结束时持仓权重。
 
 ACCOUNT = '55010428'
 account_type = 'STOCK'
-multiples = 10   # 可转债最小十张
+multiples = 10   # 可转债最小挂单十张
 strategy_name = 'target_batch_MM'
 strat_file_name = 'strat_adv.txt'
 strat_file_loc = 'D:/cloud/monitor/strat/'
@@ -21,9 +34,8 @@ logfile = 'D:/cloud/monitor/LogRunning/' + ACCOUNT + '-' + strategy_name + '.txt
 
 extract_list = []
 
-interval = 3   # 交易员轮询间隔3s
-wait_dur = 8   # 订单发出8s后撤单
-tolerance_r = 0.001  # 挂单价在最新价比例之外撤单
+interval = 5   # 交易员轮询间隔3s
+wait_dur = 9   # 订单发出8s后撤单
 start = '093000'
 end = '095500'
 end2 = '100000'
@@ -191,8 +203,8 @@ def cancel_order(C, wait_dur):
         order = order[order['sub_time'].map(lambda x: (datetime.datetime.now()-x).seconds>wait_dur)]
         for orderid in order.index:
             cancel(orderid, ACCOUNT, account_type, C)
-# 撤单 挂单价超过最新价(1+r)或低于最新价(1-r)的订单取消
-def cancel_order_price(C, r):
+# 撤单 价格偏离盘口价过多的无效订单撤单 
+def cancel_order_price(C):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
@@ -200,13 +212,24 @@ def cancel_order_price(C, r):
         # 最新价格
         codes = list(set(order['code']))
         snapshot = get_snapshot(C, codes)
-        lastPrice = snapshot[['lastPrice', 'lastClose']].apply(lambda x: \
-            x['lastPrice'] if x['lastPrice']!=0 else x['lastClose'], axis=1)
-        lastPrice = order['code'].map(lambda x: lastPrice[x])
+        # 根据挂单价和最新价价差撤单
+        #lastPrice = snapshot[['lastPrice', 'lastClose']].apply(lambda x: \
+        #    x['lastPrice'] if x['lastPrice']!=0 else x['lastClose'], axis=1)
+        #lastPrice = order['code'].map(lambda x: lastPrice[x])
+        #if not order.empty:
+        #    delta = abs((order['price']-lastPrice)/lastPrice)
+        #    delta = delta[delta>r]
+        #    for orderid in delta.index:
+        #        cancel(orderid, ACCOUNT, account_type, C)
+        # 根据盘口撤单
+        ask3 = order['code'].map(lambda x: snapshot['ask3p'][x])
+        bid3 = order['code'].map(lambda x: snapshot['bid3p'][x])
         if not order.empty:
-            delta = abs((order['price']-lastPrice)/lastPrice)
-            delta = delta[delta>r]
-            for orderid in delta.index:
+            # higher than ask
+            hta = order['price']>ask3
+            ltb = order['price']<bid3
+            orderids = order['price'][hta|ltb].index
+            for orderid in orderids:
                 cancel(orderid, ACCOUNT, account_type, C)
 #卖出 
 def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
@@ -249,7 +272,12 @@ def read_weight(C):
     A.today = datetime.datetime.today()
     # 读取每日转债目标仓位
     filename = strat_file_loc+'%s-'%str(datetime.datetime.today().date()) + strat_file_name
-    A.weight = pd.read_csv(filename, index_col=0, header=None)[1]
+    try:
+        A.weight = pd.read_csv(filename, index_col=0, header=None)[1]
+        A.skip = False
+    except:
+        A.skip = True
+        return
     # 不在目标中的标的目标仓位为0
     pos = get_pos()
     for i in pos['vol'].index:
@@ -265,6 +293,9 @@ def read_weight(C):
 
 # 获取交易方向
 def get_direct(C):
+    if A.skip:
+        print('skip')
+        return
     # 交易方向 1为买入 -1为卖出
     pos = get_pos()
     pos = pos.loc[[i for i in pos.index if i not in extract_list]]
@@ -278,6 +309,9 @@ def get_direct(C):
 
 # 挂单程序
 def trader(C):
+    if A.skip:
+        print('skip')
+        return
     # 每此操作A.weight中全部标的
     # 如果当前code的权重与A.weight权重相差金额小于最小操作金额，则将标的放入
     #start_counter = time.perf_counter()
@@ -287,9 +321,6 @@ def trader(C):
             snapshot = get_snapshot(C, [code])
             lastPrice = snapshot[['lastPrice', 'lastClose']].apply(lambda x: \
                 x['lastPrice'] if x['lastPrice']!=0 else x['lastClose'], axis=1)
-            midPrice = snapshot['mid']
-            ask1 = snapshot['askp1']
-            bid1 = snapshot['bidp1']
             # 账户
             acct = get_account()
             pos = get_pos()
@@ -309,8 +340,9 @@ def trader(C):
             min_vol = delta_min/lastPrice[code]
             min_vol = min_vol - min_vol%multiples + multiples
             min_amount = min_vol*lastPrice[code]
-            # 如果当前比例和目标比例之间差值小于最小变动金额，并且不清仓此标的，则对该标的的交易结束
-            if (abs(delta_amount)<min_amount)&(weight!=0):
+            # 如果当前比例和目标比例之间差值小于最小变动金额的一半（每次交易都是超过一些，保证不会有剩余现金），
+            # 并且不清仓此标的，则对该标的的交易结束
+            if (abs(delta_amount)<min_amount/2)&(weight!=0):
                 A.trade_complete[code] = datetime.datetime.now()
                 printstr1 = '{} success {}/{}%({}/{}), delta_amount {}, min_amount {}, min_vol {}'.format(code,\
                     round(100*marketvalue/acct['net'],2), round(100*weight,2),\
@@ -359,9 +391,9 @@ def trader(C):
                     # 平均成交所需挂单量
                     per_vol = int(remain_vol/remain_times)
                     per_vol = per_vol - per_vol%multiples + multiples
-                    #price = max(lastPrice[code], midPrice[code])
+                    #price = max(lastPrice[code], snapshot['mid'][code])
                     # 卖出报价比卖一低一厘
-                    price = ask1[code]-0.001
+                    price = snapshot['bidp5'][code]
                     vol = max(per_vol, min_vol)
                     sell(C, code, price, int(min(vol, available_vol)))
                 elif delta_amount>0:
@@ -369,9 +401,10 @@ def trader(C):
                     # 平均成交所需挂单量
                     per_vol = int(remain_vol/remain_times)
                     per_vol = per_vol - per_vol%multiples + multiples
-                    #price = min(lastPrice[code], midPrice[code])
+                    # 均价和最优价之间有利的
+                    #price = min(lastPrice[code], snapshot['mid'][code])
                     # 买入报价比买一高一厘
-                    price = bid1[code]+0.001
+                    price = snapshot['askp5'][code]
                     vol = max(per_vol, min_vol)
                     if vol*price<acct['cash']:
                         if vol<max_sub_vol:
@@ -383,6 +416,9 @@ def trader(C):
 
 # 第二次平衡，仅买入
 def trader_2(C):
+    if A.skip:
+        print('skip')
+        return
     # 超过end时间或trader完成，并且A.trade_complete未重置
     if ((len(A.trade_complete.keys())==len(A.weight)) or \
         datetime.time(int(end[:2]), int(end[2:4]), int(end[4:6]))<=datetime.datetime.now().time()) and\
@@ -401,7 +437,7 @@ def trader_2(C):
 # 撤单程序
 def order_canceler(C):
     cancel_order(C, wait_dur)
-    cancel_order_price(C, tolerance_r)
+    cancel_order_price(C)
 
 # 交易情况总结  (距离目标订单还需要再买(+)卖(-)多少) 
 def summary_trade(C):
@@ -479,7 +515,7 @@ def init(C):
     global  f0, f1, f2, f3
     f0 = trade_time(order_stat)    # 订单状态输出
     C.run_time('f0', "60nSecond", "2022-08-01 09:15:00", "SH") # 60秒(20tick）运行一次
-    f1 = trade_time(order_canceler)  # 定时撤单程序
+    f1 = trade_time(order_canceler)  # 定时、按条件撤单程序
     C.run_time('f1', "1nSecond", "2022-08-01 09:30:00", "SH")
     C.run_time('read_weight', "1d", "2022-08-01 09:00:00", "SH") # 每天9:00 读取组合目标权重
     # 根据交易开始时的权重确定交易方向
