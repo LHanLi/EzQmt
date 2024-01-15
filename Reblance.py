@@ -222,8 +222,8 @@ def cancel_order_price(C):
         #    for orderid in delta.index:
         #        cancel(orderid, ACCOUNT, account_type, C)
         # 根据盘口撤单
-        ask3 = order['code'].map(lambda x: snapshot['ask3p'][x])
-        bid3 = order['code'].map(lambda x: snapshot['bid3p'][x])
+        ask3 = order['code'].map(lambda x: snapshot['askp3'][x])
+        bid3 = order['code'].map(lambda x: snapshot['bidp3'][x])
         if not order.empty:
             # higher than ask
             hta = order['price']>ask3
