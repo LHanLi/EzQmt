@@ -1,19 +1,29 @@
-# logfile
+#######################################################################################################
+########################################### 日常io运行 ###################################################
+#######################################################################################################
 
-# log函数
-def log(message, write_time=True):
+# log 函数
+def log(*txt):
+    try:
+        f = open(logfile,'a+', encoding='gbk')
+        write_str = ('\n'+' '*35).join([str(i) for i in txt])
+        f.write('%s,        %s\n' % \
+            (datetime.datetime.now(), write_str))
+        f.close()
+    except PermissionError as e:
+        print(f"Error: {e}. You don't have permission to access the specified file.")
+
+# log ser函数
+def log_ser(text, write_time=True):
     with open(logfile, 'a') as f:
-        if write_time:
-            f.write(str(datetime.datetime.now())+'\n')
-        if type(message)==type('string'):
-            f.write(message)
-            f.write('\n')
-        elif type(message)==type(pd.Series()):
-            for i,v in message.items():
+        if type(message)==type(pd.Series()):
+            for i,v in text.items():
                 f.write(str(i)+','+str(v))
                 f.write('\n')
         else:
             f.write("unable to identify message type\n")
+
+
 # 获取行情快照数据 DataFrame, index:code 
 def get_snapshot(C, code_list):
     # 获取标的快照数据
