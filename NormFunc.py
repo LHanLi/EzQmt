@@ -23,8 +23,13 @@ def log_ser(text, write_time=True):
         else:
             f.write("unable to identify message type\n")
 
+#######################################################################################################
+########################################### 行情数据 ###################################################
+#######################################################################################################
 
 # 获取行情快照数据 DataFrame, index:code 
+SHmul = 10
+SZmul = 10
 def get_snapshot(C, code_list):
     # 获取标的快照数据
     df = C.get_full_tick(code_list)
@@ -43,14 +48,27 @@ def get_snapshot(C, code_list):
     # 涨跌停则bid/askprice为0
     df.loc[(df['bidp1'] == 0) | (df['askp1'] == 0),'mid'] = df['bidp1'] + df['askp1'] # 涨跌停修正
     ## 展示列 最新价，当日成交额、成交量(手）、最高价、最低价、开盘价 
-    # 盘口 askp\askv*/bid* 买卖3档， 昨收
-    ## 中间价 askp\askv*/bid* 买卖3档
-    display_columns = ['code', 'lastPrice', 'amount', 'volume', 'high', 'low', 'open', 'lastClose',\
-        'mid', 'askp1', 'askp2', 'askp3', 'bidp1', 'bidp2', 'bidp3', \
-            'askv1', 'askv2', 'askv3', 'bidv1', 'bidv2', 'bidv3']
+    # 盘口 askp\askv*/bid* 买卖5档， 昨收
+    ## 中间价 askp\askv*/bid* 买卖5档，需要使用券商行情
+    display_columns = ['code', 'lastPrice', 'amount', 'pvolume', 'high', 'low', 'open', 'lastClose',\
+        'mid', 'askp1', 'askp2', 'askp3', 'askp4', 'askp5', \
+            'bidp1', 'bidp2', 'bidp3', 'bidp4', 'bidp5', \
+            'askv1', 'askv2', 'askv3', 'askv4', 'askv5',\
+              'bidv1', 'bidv2', 'bidv3', 'bidv4', 'bidv5']
     df = df[display_columns].rename(columns={'volume':'vol'})
     df = df.set_index('code')
+    # 有时，沪市转债单位是手，沪市需要乘一个沪市转化因子
+    df['vol'] = df['vol']*df.index.map(lambda x: SHmul if 'SH' in x else SZmul if 'SZ' in x else 1)
     return df
+
+#######################################################################################################
+########################################### 账户状态 ###################################################
+#######################################################################################################
+
+
+
+
+
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
     position_to_dict = lambda pos: {
@@ -107,6 +125,11 @@ def get_dealt():
     dealt_vol = pd.concat([bought_vol['dealt_vol'], sold_vol['dealt_vol']])
     dealt_vol = dealt_vol[abs(dealt_vol).sort_values(ascending=False).index]
     return dealt_vol
+
+#######################################################################################################
+########################################### 买卖挂单 ###################################################
+#######################################################################################################
+
 #卖出 row包含订单信息
 def sell(C, row):
     code = row['code'] # 标的代码
