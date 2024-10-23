@@ -84,6 +84,8 @@ def get_pos():
     if pos.empty:
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
+    extract_names = ['新标准券', '国标准券', 'GC001', 'Ｒ-001']            # 逆回购仓位不看
+    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()        # 已清仓不看
     return pos
 # 获取账户状态 净值，现金
 def get_account():
