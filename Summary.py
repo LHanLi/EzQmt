@@ -137,10 +137,10 @@ def summary(C):
         summarydeal = deal.groupby(['strat', 'code'])['vol'].sum()
         # 当日策略持仓
         todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0)
-        todaystratpos = todaystratpos[todaystratpos!=0]
+        todaystratpos = todaystratpos[todaystratpos>0]
         todaystratpos.reset_index().to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
     else:
-        pos['strat'] = 'init'
+        pos['strat'] = 'craft'
         pos[['strat', 'code', 'vol']].to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
 
 
