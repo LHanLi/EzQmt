@@ -126,6 +126,8 @@ def get_dealt():
     # 完成量
     dealt_vol = pd.concat([bought_vol['dealt_vol'], sold_vol['dealt_vol']])
     dealt_vol = dealt_vol[abs(dealt_vol).sort_values(ascending=False).index]
+    extract_codes = ['204001.SH', '131810.SZ', '204003.SH', '']
+    dealt_vol = dealt_vol[~dealt_vol['code'].isin(extract_codes)].copy()
     return dealt_vol
 
 #######################################################################################################
