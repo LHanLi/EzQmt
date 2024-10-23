@@ -6,9 +6,8 @@ import pandas as pd
 # 18:00总结当日交易
 # 当日输出账户、持仓、交割、委托单
 
-ACCOUNT = '55010428'
+ACCOUNT = ''
 account_type = 'STOCK'
-
 
 strategy_name = 'summary'
 # 日志文件
@@ -126,6 +125,25 @@ def summary(C):
     # 当日成交
     deal = get_deal()
     deal.to_csv(save_loc+'deal-'+today+'.csv', index=False)
+    # 总结当日成交更新策略持仓
+    # 前日策略持仓
+    stratposfiles =  [f for f in os.listdir(save_loc) if 'stratpos' in f]
+    if len(stratposfiles)!=0:
+        prestratpos = sorted(stratposfiles)[-1]
+        prestratpos = pd.read_csv(save_loc+prestratpos).set_index(['strat', 'code'])
+        # 当日成交汇总
+        deal = deal.rename(columns={'remark':'strat'})
+        deal['vol'] = deal['vol']*deal['trade_type'].map(lambda x: 1 if x==48 else -1)
+        summarydeal = deal.groupby(['strat', 'code'])['vol'].sum()
+        # 当日策略持仓
+        todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0)
+        todaystratpos = todaystratpos[todaystratpos!=0]
+        todaystratpos.reset_index().to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
+    else:
+        pos['strat'] = 'init'
+        pos[['strat', 'code', 'vol']].to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
+
+
 
 # 初始化函数 主程序
 def init(C):
@@ -136,7 +154,7 @@ def init(C):
     if not os.path.exists(save_loc):
         os.makedirs(save_loc)
     # 每日定时定点summary函数
-    C.run_time('summary', "1d", "2022-08-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], \
+    C.run_time('summary', "1d", "2024-01-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], \
         summary_time[4:6]), "SH") # 输出今日委托
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
