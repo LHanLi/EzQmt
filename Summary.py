@@ -131,17 +131,28 @@ def summary(C):
     if len(stratposfiles)!=0:
         prestratpos = sorted(stratposfiles)[-1]
         prestratpos = pd.read_csv(save_loc+prestratpos).set_index(['strat', 'code'])
-        # 当日成交汇总
-        deal = deal.rename(columns={'remark':'strat'})
-        deal['vol'] = deal['vol']*deal['trade_type'].map(lambda x: 1 if x==48 else -1)
-        summarydeal = deal.groupby(['strat', 'code'])['vol'].sum()
-        # 当日策略持仓
-        todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0)
-        todaystratpos = todaystratpos[todaystratpos>0]
-        todaystratpos.reset_index().to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
     else:
-        pos['strat'] = 'craft'
-        pos[['strat', 'code', 'vol']].to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
+        # 当日买入之前持仓，对于当日成交部分，如果当日卖出则之前为对应策略持仓，如果当日买入则之前不持仓
+        firststratpos = pos
+        firststratpos['strat'] = 'craft'
+        firststratpos = firststratpos.set_index(['strat', 'code'])['vol']
+        deal_ = deal.rename(columns={'remark':'strat'}).copy()
+        deal_['vol'] = -deal_['vol']*deal['trade_type'].map(lambda x: 1 if x==48 \
+                        else -1) # >0为卖出，<0为买入 
+        summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum().reset_index()
+        summarydeal['strat'] = summarydeal.apply(lambda x: x['strat'] if x['vol']>0 \
+                                else 'craft', axis=1) 
+        summarydeal = summarydeal.set_index(['strat', 'code'])['vol']
+        firststratpos = firststratpos.add(summarydeal, fill_value=0)
+        prestratpos = firststratpos[firststratpos>0].copy()
+    # 当日成交汇总
+    deal_ = deal.rename(columns={'remark':'strat'})
+    deal_['vol'] = deal_['vol']*deal['trade_type'].map(lambda x: 1 if x==48 else -1)
+    summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum()
+    # 当日策略持仓
+    todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0)
+    todaystratpos = todaystratpos[todaystratpos>0].copy()
+    todaystratpos.reset_index().to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
 
 
 
