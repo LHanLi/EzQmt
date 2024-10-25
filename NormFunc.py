@@ -91,11 +91,12 @@ def get_pos():
 def get_account():
     acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
     return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
-# 获取订单状态 当日没有订单返回空表（但是有columns）
+# 获取订单状态 当日没有订单返回空表（但是有columns） 当天订单
 def get_order():
     order_info = get_trade_detail_data(ACCOUNT, account_type, 'ORDER')
     order_to_dict = lambda o:{
         'id':o.m_strOrderSysID,
+        'date': o.m_strInsertDate,
         'code': o.m_strInstrumentID+'.'+o.m_strExchangeID,
         'sub_time': o.m_strInsertTime,          # 例如 str:095620
         'trade_type': o.m_nOffsetFlag,          # 48 买入/开仓；49 卖出/平仓
@@ -104,17 +105,24 @@ def get_order():
         'dealt_vol': o.m_nVolumeTraded,
         'remain_vol': o.m_nVolumeTotal,
         # 48 未报， 49 待报， 50 已报， 51 已报待撤，52 部成待撤， 53 部撤(部成撤单），
-        # 54 已撤， 55 部成， 56 已成， 57 废单， 86 已确认， 255 未知
+        # 54 已撤， 55 部成， 56 已成， 57 废单(算法单执行完毕之后为废单）， 86 已确认， 255 未知
         'status':o.m_nOrderStatus,               
         'frozen':o.m_dFrozenMargin+o.m_dFrozenCommission,   # 冻结金额/保证金+手续费
+        'remark':o.m_strRemark  # 订单备注
     }
     order = pd.DataFrame(list(map(order_to_dict, order_info)))
     if order.empty:
-        return pd.DataFrame(columns=['code', 'sub_time', 'trade_type', 'sub_vol', 'dealt_vol', \
-                  'remain_vol', 'status'])
-    order = order.set_index('id').sort_values('sub_time', ascending=False)
-    return order[['code', 'sub_time', 'trade_type', 'sub_vol', 'dealt_vol', \
-                  'remain_vol', 'status']]
+        return pd.DataFrame(columns=['id', 'date', 'code', 'sub_time', 'trade_type',\
+            'price', 'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark'])
+    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
+    order = order[(order['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
+                    (~order['code'].isin(extract_codes))].copy()
+    return order[['id', 'date', 'code', 'sub_time', 'trade_type', 'price',\
+        'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark']] 
+
 # 成交情况
 def get_dealt():
     order = get_order().reset_index()
