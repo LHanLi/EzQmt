@@ -132,6 +132,34 @@ def get_dealt():
                      '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     dealt_vol = dealt_vol[~dealt_vol['code'].isin(extract_codes)].copy()
     return dealt_vol
+# 获取成交数据
+def get_deal():
+    deal_info = get_trade_detail_data(ACCOUNT, account_type, 'DEAL')
+    deal_to_dict = lambda d:{
+        'order_id':d.m_nRef, # 订单编号
+        'id':d.m_strOrderSysID, # 合同编号
+        'code': d.m_strInstrumentID + '.' + d.m_strExchangeID,
+        'date':d.m_strTradeDate,
+        'deal_time':d.m_strTradeTime, # 成交时间
+        # 48 买入/开仓 49卖出/平仓  50 强平  51 平今  52 平昨  53 强减 
+        'trade_type':d.m_nOffsetFlag, 
+        'price':d.m_dPrice,
+        'vol': d.m_nVolume,
+        'amount': d.m_dTradeAmount,
+        'remark': d.m_strRemark 
+    }
+    deal = pd.DataFrame(list(map(deal_to_dict, deal_info)))
+    if deal.empty:
+        return pd.DataFrame(columns=['id', 'order_id', 'code', 'date', 'deal_time',\
+            'trade_type', 'price', 'vol', 'amount', 'remark'])
+    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
+    deal = deal[(deal['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
+                    (~deal['code'].isin(extract_codes))].copy()
+    return deal[['id', 'order_id', 'code', 'date', 'deal_time',\
+        'trade_type', 'price', 'vol', 'amount', 'remark']]
 
 #######################################################################################################
 ########################################### 买卖挂单 ###################################################
