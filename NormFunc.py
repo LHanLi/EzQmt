@@ -65,10 +65,6 @@ def get_snapshot(C, code_list):
 ########################################### 账户状态 ###################################################
 #######################################################################################################
 
-
-
-
-
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
     position_to_dict = lambda pos: {
@@ -84,10 +80,11 @@ def get_pos():
     if pos.empty:
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
-    extract_names = ['新标准券', '国标准券', 'GC001', 'GC002', 'GC003', 'GC004', 'GC007', \
-                     'GC014', 'GC028', 'GC091', 'GC182', \
-                     'Ｒ-001', 'Ｒ-002', 'Ｒ-003', 'Ｒ-004', 'Ｒ-007',\
-                    'Ｒ-014', 'Ｒ-028', 'Ｒ-091', 'Ｒ-182']            # 逆回购仓位不看
+    #extract_names = ['新标准券', '国标准券', 'GC001', 'GC002', 'GC003', 'GC004', 'GC007', \
+    #                 'GC014', 'GC028', 'GC091', 'GC182', \
+    #                 'Ｒ-001', 'Ｒ-002', 'Ｒ-003', 'Ｒ-004', 'Ｒ-007',\
+    #                'Ｒ-014', 'Ｒ-028', 'Ｒ-091', 'Ｒ-182']            # 逆回购仓位不看
+    extract_names = []
     pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()        # 已清仓不看
     return pos
 # 获取账户状态 净值，现金
