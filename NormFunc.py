@@ -84,7 +84,10 @@ def get_pos():
     if pos.empty:
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
-    extract_names = ['新标准券', '国标准券', 'GC001', 'GC003', 'Ｒ-001']            # 逆回购仓位不看
+    extract_names = ['新标准券', '国标准券', 'GC001', 'GC002', 'GC003', 'GC004', 'GC007', \
+                     'GC014', 'GC028', 'GC091', 'GC182', \
+                     'Ｒ-001', 'Ｒ-002', 'Ｒ-003', 'Ｒ-004', 'Ｒ-007',\
+                    'Ｒ-014', 'Ｒ-028', 'Ｒ-091', 'Ｒ-182']            # 逆回购仓位不看
     pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()        # 已清仓不看
     return pos
 # 获取账户状态 净值，现金
@@ -126,7 +129,10 @@ def get_dealt():
     # 完成量
     dealt_vol = pd.concat([bought_vol['dealt_vol'], sold_vol['dealt_vol']])
     dealt_vol = dealt_vol[abs(dealt_vol).sort_values(ascending=False).index]
-    extract_codes = ['204001.SH', '131810.SZ', '204003.SH', '']
+    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     dealt_vol = dealt_vol[~dealt_vol['code'].isin(extract_codes)].copy()
     return dealt_vol
 
