@@ -1,6 +1,10 @@
 #######################################################################################################
-########################################### 日常io运行 ###################################################
+#############################        常用函数模块             ###########################################
 #######################################################################################################
+
+
+
+########################################### 日常io运行 ###################################################
 
 # log 函数
 def log(*txt):
@@ -23,9 +27,7 @@ def log_ser(text, write_time=True):
         else:
             f.write("unable to identify message type\n")
 
-#######################################################################################################
 ########################################### 行情数据 ###################################################
-#######################################################################################################
 
 # 获取行情快照数据 DataFrame, index:code 
 SHmul = 10
@@ -61,9 +63,7 @@ def get_snapshot(C, code_list):
     df['vol'] = df['vol']*df.index.map(lambda x: SHmul if 'SH' in x else SZmul if 'SZ' in x else 1)
     return df
 
-#######################################################################################################
 ########################################### 账户状态 ###################################################
-#######################################################################################################
 
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
@@ -169,28 +169,52 @@ def get_deal():
     return deal[['id', 'order_id', 'code', 'date', 'deal_time',\
         'trade_type', 'price', 'vol', 'amount', 'remark']]
 
-#######################################################################################################
 ########################################### 买卖挂单 ###################################################
-#######################################################################################################
 
-#卖出 row包含订单信息
-def sell(C, row):
-    code = row['code'] # 标的代码
-    price = row.target_price # 执行价格
-    volume = row.m_nCanUseVolume # 执行数量
-    strategyName = row.strategyName # 策略名
-    remark = row.remark # 备注
+# 撤单 超过wait_dur s的订单取消
+def cancel_order(C, wait_dur):
+    order = get_order()
+    # 全部可撤订单
+    order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    if not order.empty:
+        # 超过等待时间撤单 insert_time 为1900年
+        order['sub_time'] = order['sub_time'].map(lambda x: datetime.datetime.strptime(x, "%H%M%S"))
+        order = order[order['sub_time'].map(lambda x: (datetime.datetime.now()-x).seconds>wait_dur)]
+        for orderid in order.index:
+            cancel(orderid, ACCOUNT, account_type, C)
+# 撤单 属于策略strat的挂单价超过最新价(1+r)或低于最新价(1-r)的订单取消
+def cancel_order_price(C, r, stratname=None):
+    order = get_order()
+    # 全部可撤订单
+    order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    # 属于该策略
+    if stratname!=None:
+        order = order[order['remark']==stratname].copy()
+    if not order.empty:
+        # 最新价格
+        codes = list(set(order['code']))
+        snapshot = get_snapshot(C, codes)
+        lastPrice = snapshot[['lastPrice', 'lastClose']].apply(lambda x: \
+            x['lastPrice'] if x['lastPrice']!=0 else x['lastClose'], axis=1)
+        lastPrice = order['code'].map(lambda x: lastPrice[x])
+        if not order.empty:
+            delta = abs((order['price']-lastPrice)/lastPrice)
+            delta = delta[delta>r]
+            for orderid in delta.index:
+                cancel(orderid, ACCOUNT, account_type, C)
+#卖出 
+def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
     # 卖出，单标的，账号， 代码，限价单，价格，量，策略名，立即触发下单，备注
-    passorder(24, 1101, ACCOUNT, code, 11, price, volume, strategyName, 2, remark, C) # 下单
+    if account_type=='STOCK':
+        passorder(24, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
+    elif account_type=='CREDIT':
+        passorder(34, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
 #买入
-def buy(C, row):
-    code = row['code'] # 标的代码
-    price = row.target_price # 执行价格
-    volume = row.m_nCanUseVolume # 执行数量
-    strategyName = row.strategyName # 策略名
-    remark = row.remark # 备注
-    # 卖出，单标的，账号， 代码，限价单，价格，量，策略名，立即触发下单，备注
-    passorder(23, 1101, ACCOUNT, code, 11, price, volume, strategyName, 2, remark, C) # 下单
+def buy(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
+    if account_type=='STOCK':
+        passorder(23, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
+    elif account_type=='CREDIT':
+        passorder(33, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
 # 存储全局变量
 class a():
     pass
