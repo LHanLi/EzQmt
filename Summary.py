@@ -2,6 +2,7 @@
 import datetime, re, os, time
 import numpy as np
 import pandas as pd
+import NormFUnc as NF
 
 # 18:00总结当日交易
 # 当日输出账户、持仓、交割、委托单
@@ -12,12 +13,7 @@ account_type = 'STOCK'
 strategy_name = 'summary'
 # 日志文件
 save_loc = 'D:/cloud/XtQuant/summary-' + ACCOUNT + '/' + account_type + '/'
-summary_time = '163000'
-
-
-##############################################################################################
-###################################   常用功能模块   ##########################################
-##############################################################################################
+summary_time = '162000'
 
 
 ##############################################################################################
@@ -28,16 +24,16 @@ summary_time = '163000'
 def summary(C):
     today = datetime.datetime.now().date().strftime("%Y%m%d")
     # 账户
-    acct = get_account()
+    acct = NF.get_account()
     pd.Series(acct).to_csv(save_loc+'acct-'+today+'.csv')
     # 当日持仓记录 
-    pos = get_pos()
+    pos = NF.get_pos()
     pos.to_csv(save_loc+'position-'+today+'.csv', encoding='utf_8_sig', index=False)
     # 当日委托单
-    order = get_order(strat=False)
+    order = NF.get_order(strat=False)
     order.to_csv(save_loc+'order-'+today+'.csv', index=False)
     # 当日成交
-    deal = get_deal()
+    deal = NF.get_deal()
     deal.to_csv(save_loc+'deal-'+today+'.csv', index=False)
     # 总结当日成交更新策略持仓
     # 前日策略持仓
@@ -55,7 +51,7 @@ def summary(C):
                         else -1) # >0为卖出，<0为买入 
         summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum().reset_index()
         summarydeal['strat'] = summarydeal.apply(lambda x: x['strat'] if x['vol']>0 \
-                                else 'craft', axis=1) 
+                                else 'craft', axis=1)
         summarydeal = summarydeal.set_index(['strat', 'code'])['vol']
         firststratpos = firststratpos.add(summarydeal, fill_value=0)
         prestratpos = firststratpos[firststratpos>0].copy()
