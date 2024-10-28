@@ -20,7 +20,7 @@ def log(*txt):
 # log ser函数
 def log_ser(text, write_time=True):
     with open(logfile, 'a') as f:
-        if type(message)==type(pd.Series()):
+        if type(text)==type(pd.Series()):
             for i,v in text.items():
                 f.write(str(i)+','+str(v))
                 f.write('\n')
