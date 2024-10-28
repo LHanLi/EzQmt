@@ -184,9 +184,11 @@ def cancel_order_price(C, r, stratname=None):
             delta = delta[delta>r]
             for orderid in delta.index:
                 cancel(orderid, ACCOUNT, account_type, C)
-strategy_name = 'craft'
+#strategy_name = 'craft'
+#multiples = 10
 #卖出 
 def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
+    vol = int((vol//multiples)*multiples)
     # 卖出，单标的，账号， 代码，限价单，价格，量，策略名，立即触发下单，备注
     if account_type=='STOCK':
         passorder(24, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
@@ -194,6 +196,7 @@ def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
         passorder(34, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
 #买入
 def buy(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
+    vol = int((vol//multiples)*multiples)
     if account_type=='STOCK':
         passorder(23, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
     elif account_type=='CREDIT':
