@@ -122,24 +122,6 @@ def get_order():
                     (~order['code'].isin(extract_codes))].copy()
     return order[['id', 'date', 'code', 'sub_time', 'trade_type', 'price',\
         'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark']] 
-
-# 成交情况
-def get_dealt():
-    order = get_order().reset_index()
-    # 所有已撤、部成、已成订单
-    dealt_total = order[order['status'].map(lambda x: x in [53, 54, 55, 56])].copy()
-    # 买入\卖出
-    bought_vol = dealt_total[dealt_total['trade_type']==48][['dealt_vol', 'code']].groupby('code').sum()
-    sold_vol = -dealt_total[dealt_total['trade_type']==49][['dealt_vol', 'code']].groupby('code').sum()
-    # 完成量
-    dealt_vol = pd.concat([bought_vol['dealt_vol'], sold_vol['dealt_vol']])
-    dealt_vol = dealt_vol[abs(dealt_vol).sort_values(ascending=False).index]
-    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
-    dealt_vol = dealt_vol[~dealt_vol['code'].isin(extract_codes)].copy()
-    return dealt_vol
 # 获取成交数据
 def get_deal():
     deal_info = get_trade_detail_data(ACCOUNT, account_type, 'DEAL')
@@ -215,6 +197,43 @@ def buy(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
         passorder(23, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
     elif account_type=='CREDIT':
         passorder(33, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
+
+########################################### 其他 ###################################################
+
 # 存储全局变量
 class a():
     pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 成交情况
+#def get_dealt():
+#    order = get_order().reset_index()
+#    # 所有已撤、部成、已成订单
+#    dealt_total = order[order['status'].map(lambda x: x in [53, 54, 55, 56])].copy()
+#    # 买入\卖出
+#    bought_vol = dealt_total[dealt_total['trade_type']==48][['dealt_vol', 'code']].groupby('code').sum()
+#    sold_vol = -dealt_total[dealt_total['trade_type']==49][['dealt_vol', 'code']].groupby('code').sum()
+#    # 完成量
+#    dealt_vol = pd.concat([bought_vol['dealt_vol'], sold_vol['dealt_vol']])
+#    dealt_vol = dealt_vol[abs(dealt_vol).sort_values(ascending=False).index]
+#    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+#                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+#                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+#                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
+#    dealt_vol = dealt_vol[~dealt_vol['code'].isin(extract_codes)].copy()
+#    return dealt_vol
