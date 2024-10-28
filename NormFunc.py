@@ -52,7 +52,7 @@ def get_snapshot(C, code_list):
     ## 展示列 最新价，当日成交额、成交量(手）、最高价、最低价、开盘价 
     # 盘口 askp\askv*/bid* 买卖5档， 昨收
     ## 中间价 askp\askv*/bid* 买卖5档，需要使用券商行情
-    display_columns = ['code', 'lastPrice', 'amount', 'pvolume', 'high', 'low', 'open', 'lastClose',\
+    display_columns = ['code', 'lastPrice', 'amount', 'volume', 'high', 'low', 'open', 'lastClose',\
         'mid', 'askp1', 'askp2', 'askp3', 'askp4', 'askp5', \
             'bidp1', 'bidp2', 'bidp3', 'bidp4', 'bidp5', \
             'askv1', 'askv2', 'askv3', 'askv4', 'askv5',\
