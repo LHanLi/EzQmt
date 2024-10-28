@@ -184,6 +184,7 @@ def cancel_order_price(C, r, stratname=None):
             delta = delta[delta>r]
             for orderid in delta.index:
                 cancel(orderid, ACCOUNT, account_type, C)
+strategy_name = 'craft'
 #卖出 
 def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
     # 卖出，单标的，账号， 代码，限价单，价格，量，策略名，立即触发下单，备注
