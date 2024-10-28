@@ -120,7 +120,8 @@ def get_order():
                      '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     order = order[(order['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
                     (~order['code'].isin(extract_codes))].copy()
-    return order[['id', 'date', 'code', 'sub_time', 'trade_type', 'price',\
+    order = order.set_index('id')
+    return order[['date', 'code', 'sub_time', 'trade_type', 'price',\
         'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark']] 
 # 获取成交数据
 def get_deal():
