@@ -3,8 +3,7 @@ import datetime, re, os, time
 import numpy as np
 import pandas as pd
 
-# summary_time(16:20)总结当日交易
-# 当日输出账户资产现金、持仓、交割、委托单以及各策略收盘持仓情况
+# 每交易日summary_time(16:20)输出账户资产现金、持仓、交割、委托单以及各策略收盘持仓情况
 
 ACCOUNT = '0000'                                                   # 填写您的账号
 account_type = 'STOCK'
@@ -212,6 +211,16 @@ def init(C):
     # 初始化时检查文件夹，如果没有的话则创建
     if not os.path.exists(save_loc):
         os.makedirs(save_loc)
+    # 交易日
+    def trade_time(func):
+        def wrapper(*args, **kwargs):
+            today = datetime.datetime.now().date().strftime("%Y%m%d")
+            now = datetime.datetime.now().time()
+            if C.get_trading_dates('SH', today, today, 1, '1d'):
+                return func(*args, **kwargs)
+            else:
+                pass
+        return wrapper
     # 每日定时定点summary函数
     C.run_time('summary', "1d", "2024-01-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], \
         summary_time[4:6]), "SH") # 输出今日委托
