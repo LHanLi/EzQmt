@@ -8,8 +8,10 @@ import pandas as pd
 ACCOUNT = '0000'                                                   # 填写您的账号
 account_type = 'STOCK'
 strategy_name = 'summary'
-# 日志文件
-save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（用于post分析及复杂多策略运行）保存位置
+
+logfile = 'D:/cloud/monitor/QMT/LogRunning/'                       # 填写您的日志文件保存位置   
+logfile = logfile + ACCOUNT + '-' + strategy_name + '.txt' 
+save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（本策略输出结果）保存位置
 save_loc = save_loc + ACCOUNT + '/' + account_type + '/'    
 summary_time = '162000'
 
