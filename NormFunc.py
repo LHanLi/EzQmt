@@ -9,23 +9,23 @@
 # log 函数
 def log(*txt):
     try:
-        f = open(logfile,'a+', encoding='gbk')
-        write_str = ('\n'+' '*35).join([str(i) for i in txt])
-        f.write('%s,        %s\n' % \
-            (datetime.datetime.now(), write_str))
+        f = open(logfile,'a+', encoding='gbk')  
+        f.write('%s'%datetime.datetime.now()+' '*6)  # 时间戳
+        if type(txt[0])==pd.Series:
+            f.write('name: %s\n'%txt[0].name)
+            for i,v in txt[0].items():
+                f.write(' '*32+str(i)+', '+str(v)+'\n')
+        elif type(txt[0])==pd.DataFrame:
+            f.write(' '.join([str(i) for i in txt[0].columns])+'\n')
+            for i,r in txt[0].iterrows():
+                f.write(' '*29+str(i)+': ')
+                f.write(', '.join([str(j) for j in r.values])+'\n')
+        else:
+            write_str = ('\n'+' '*32).join([str(i) for i in txt])
+            f.write('%s\n' %write_str)
         f.close()
     except PermissionError as e:
         print(f"Error: {e}. You don't have permission to access the specified file.")
-
-# log ser函数
-def log_ser(text, write_time=True):
-    with open(logfile, 'a') as f:
-        if type(text)==type(pd.Series()):
-            for i,v in text.items():
-                f.write(str(i)+','+str(v))
-                f.write('\n')
-        else:
-            f.write("unable to identify message type\n")
 
 ########################################### 行情数据 ###################################################
 
