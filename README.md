@@ -3,7 +3,7 @@
 ## 安装
 
 ## 备注
-EzQmt 文件夹中脚本适配miniqmt，需使用miniqmt调用。
+EzQmt 文件夹中脚本除post模块外，适配miniqmt，需使用miniqmt调用。
 EzQmt 文件夹外*.py策略可直接复制到QMT客户端运行，实现简单的必要需求。
 
 # 主要功能
@@ -19,7 +19,7 @@ EzQmt 文件夹外*.py策略可直接复制到QMT客户端运行，实现简单�
 ### NormFunc
 QMT客户端常用基础函数
 
-## miniQMT（需运行Summary.py）
+## EzQmt（需在QMT客户端运行Summary.py监控账户状态）
 
 ### Post.py 账户绩效后处理
 
