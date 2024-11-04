@@ -24,11 +24,12 @@ QMT客户端常用基础函数
 ### Post.py 账户绩效后处理
 
 整体组合表现：
-![image](https://github.com/user-attachments/assets/9ddf9826-e874-4722-bea7-c0d6565b9355)
 ![image](https://github.com/user-attachments/assets/5235e3f3-baa0-44d8-b962-94f498ee66dc)
+![image](https://github.com/user-attachments/assets/9ddf9826-e874-4722-bea7-c0d6565b9355)
 
 分策略表现：
-![image](https://github.com/user-attachments/assets/aeaa2f19-43c9-4fc2-a459-870659cd9f42)
+![image](https://github.com/user-attachments/assets/d9d476b8-2de2-487f-9a7f-4d28e5f77f62)
+
 
 交易滑点分析：
 ![image](https://github.com/user-attachments/assets/2790b70e-2011-40d1-9a2d-2e9cb05a30fc)
