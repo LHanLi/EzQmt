@@ -19,6 +19,8 @@ logfile = logloc + ACCOUNT + '-' + strategy_name + '.txt'
 
 # 策略输入
 strat_file = 'D:/cloud/monitor/strat/basket.csv'            # 您的lude篮子文件存储位置
+#strat_file_loc = 'D:/cloud/monitor/strat/'
+#strat_file_name = 'basket.csv'   # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
 extract_codes = []   # ！！！此篮子外的标的可能被卖出！！！
 
 # 交易设置
@@ -260,7 +262,13 @@ class a():
 
 # 初始化准备
 def prepare(C):
-    df = pd.read_csv(strat_file, encoding='gbk')
+    try:
+        strat_file = strat_file_loc + \
+                '%s-'%datetime.datetime.today().strftime("%Y%m%d") +\
+                     strat_file_name
+        df = pd.read_csv(strat_file, encoding='gbk')
+    except:
+        df = pd.read_csv(strat_file, encoding='gbk')
     target_weights = pd.concat([df['代码'].astype('str')+'.'+df['市场'], df['相对权重']], axis=1).set_index([0])['相对权重']
     target_weights = target_weights/target_weights.sum()
     A.target_cap = strat_cap*target_weights  # 最终市值
