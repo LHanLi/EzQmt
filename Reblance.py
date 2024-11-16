@@ -1,5 +1,5 @@
 # encoding:gbk
-import datetime, re, time, copy
+import datetime, re, time, os, copy
 import numpy as np
 import pandas as pd
 
@@ -18,16 +18,17 @@ logloc = 'D:/cloud/monitor/QMT/LogRunning/'                 # 您的日志文件
 logfile = logloc + ACCOUNT + '-' + strategy_name + '.txt'  
 
 # 策略输入
-strat_file = 'D:/cloud/monitor/strat/basket.csv'            # 您的lude篮子文件存储位置
-#strat_file_loc = 'D:/cloud/monitor/strat/'
-#strat_file_name = 'basket.csv'   # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
-extract_codes = []   # ！！！此篮子外的标的可能被卖出！！！
+stratfile_loc = 'D:/cloud/monitor/strat/'                     # 您的策略文件（lude篮子文件）存储位置
+stratfile_name = 'basket'   # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
+extract_codes = ['118040.SH', ]   # ！！！此篮子外的标的可能被卖出！！！
+buy_num = 5                     # 此排名内买入
+holding_num = 8                 # 此排名内不卖出
 
 # 交易设置
-strat_cap = 10e4           # 全部篮子标的目标市值
-start_time = '143000'      # 开始交易时点
+strat_cap = 100e4           # 全部篮子标的目标市值
+start_time = '145000'      # 开始交易时点
 interval = 30              # 每隔interval秒挂单一次
-dur_time = 1800             # 最长交易时间（秒）
+dur_time = 600             # 最长交易时间（秒）
 wait_dur = interval*0.8    # 订单等待wait_dur秒后未成交撤单
 tolerance = 0.01           # 买卖挂单超价（%）
 delta_min = 3000           # 最小挂单金额
@@ -232,9 +233,12 @@ def cancel_order_price(C, r, stratname=None):
             delta = delta[delta>r]
             for orderid in delta.index:
                 cancel(orderid, ACCOUNT, account_type, C)
-#卖出 张数向下取整 
+#卖出 
 def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
-    vol = int((vol//multiples)*multiples)  # 向下取multiples整数倍
+    vol = int((vol//multiples)*multiples)
+    if vol==0:
+        print('too less vol to sub')
+        return
     # 卖出，单标的，账号， 代码，限价单，价格，量，策略名，立即触发下单，备注
     if account_type=='STOCK':
         passorder(24, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
@@ -243,6 +247,9 @@ def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
 #买入
 def buy(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
     vol = int((vol//multiples)*multiples)
+    if vol==0:
+        print('too less vol to sub')
+        return
     if account_type=='STOCK':
         passorder(23, 1101, ACCOUNT, code, 11, price, vol, strategyName, 2, remark, C) # 下单
     elif account_type=='CREDIT':
@@ -262,20 +269,24 @@ class a():
 
 # 初始化准备
 def prepare(C):
-    try:
-        strat_file = strat_file_loc + \
-                '%s-'%datetime.datetime.today().strftime("%Y%m%d") +\
-                     strat_file_name
-        df = pd.read_csv(strat_file, encoding='gbk')
-    except:
-        df = pd.read_csv(strat_file, encoding='gbk')
-    target_weights = pd.concat([df['代码'].astype('str')+'.'+df['市场'], df['相对权重']], axis=1).set_index([0])['相对权重']
+    strat_files = [f for f in os.listdir(stratfile_loc) \
+                            if f.split('.')[-2].split('-')[-1]==stratfile_name]
+    strat_files = sorted(strat_files)
+    strat_file = stratfile_loc + strat_files[-1]
+    df = pd.read_csv(strat_file, encoding='gbk')
+    log('策略文件', strat_file)
+    print('策略文件', strat_file)
+    init_cap = get_pos()['MarketValue']     # 处理全部持仓
+    sorted_codes = df['代码'].astype('str')+'.'+df['市场']
+    holding_codes = set(init_cap.index)&set(sorted_codes[:holding_num].values)
+    buy_codes = sorted_codes[~sorted_codes.isin(holding_codes)]
+    buy_codes = buy_codes.values[:(buy_num - len(holding_codes))]
+    target_codes = holding_codes|set(buy_codes)-set(extract_codes)
+    target_weights = pd.Series(1, index=list(target_codes))
     target_weights = target_weights/target_weights.sum()
     A.target_cap = strat_cap*target_weights  # 最终市值
     log('目标市值')
     log(A.target_cap)
-    init_cap = get_pos()['MarketValue']     # 处理全部持仓
-    #A.init_cap = get_pos()['MarketValue'].reindex(A.target_cap.index).fillna(0)  仅处理策略持仓
     A.codes = list((set(A.target_cap.index)|set(init_cap.index))-set(extract_codes))
     init_cap = init_cap.reindex(A.codes).fillna(0)
     log('初始持仓')
@@ -352,7 +363,6 @@ def summary(C):
     log('总成交张数')                      # 已成交张数
     log(A.traded_vol)
     end_cap = get_pos()['MarketValue']     # 处理全部持仓
-    #A.init_cap = get_pos()['MarketValue'].reindex(A.target_cap.index).fillna(0)  仅处理策略持仓
     log('结束时持仓')
     log(end_cap.loc[A.codes])
 
