@@ -2,6 +2,13 @@
 
 ## 安装
 
+### QMT 客户端 配置方法
+![1731993271869](https://github.com/user-attachments/assets/d7852645-305f-4b93-ba9c-87d1a0643e9d)
+在模型研究界面，将.py中内容替换图示中代码框，调整代码中自定义参数，新建策略。
+![1731993357372](https://github.com/user-attachments/assets/d7a5f601-cd73-4daa-a150-55ff65418a2f)
+![1731993389345](https://github.com/user-attachments/assets/0481d6f8-5814-4b2a-b9b8-50345dd450f3)
+在模型交易界面，找到刚刚新建的策略，新建策略交易，选择账号，运行。
+
 ## 备注
 EzQmt 文件夹中脚本除post模块外，适配miniqmt，需使用miniqmt调用。
 EzQmt 文件夹外*.py策略可直接复制到QMT客户端运行，实现简单的必要需求。
