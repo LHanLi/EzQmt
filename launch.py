@@ -16,6 +16,15 @@ def input_content(hwd, content):
       click_keys(hwd,item)
   time.sleep(0.1)
 
+def get_my_child_window(parent):
+    hwndChildList = []
+    win32gui.EnumChildWindows(
+        parent, lambda hwnd, param: param.append((hwnd,win32gui.GetWindowText(hwnd),win32gui.GetClassName(hwnd),win32gui.GetWindowRect(hwnd))),  hwndChildList)
+    for i in range(len(hwndChildList)):
+        item=hwndChildList[i]
+        #print item[0],item[1],item[2],i
+    return hwndChildList
+  
 def find_child_window(parent_handle,winstr,classname=""):
     result=[]                
     handlelist=get_my_child_window(parent_handle)
