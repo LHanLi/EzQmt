@@ -155,10 +155,13 @@ def get_deal():
 ########################################### 买卖挂单 ###################################################
 
 # 撤单 超过wait_dur s的订单取消
-def cancel_order(C, wait_dur):
+def cancel_order(C, wait_dur, stratname=None):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    # 属于该策略
+    if stratname!=None:
+        order = order[order['remark']==stratname].copy()
     if not order.empty:
         # 超过等待时间撤单 insert_time 为1900年
         order['sub_time'] = order['sub_time'].map(lambda x: datetime.datetime.strptime(x, "%H%M%S"))
