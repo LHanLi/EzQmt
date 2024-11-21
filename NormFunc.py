@@ -65,6 +65,10 @@ def get_snapshot(C, code_list):
 
 ########################################### 账户状态 ###################################################
 
+# 获取账户状态 净值，现金
+def get_account():
+    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
+    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
 # 忽略逆回购持仓、订单、交割单
 status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
                      '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
@@ -86,12 +90,8 @@ def get_pos():
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
     pos_extract_names = ['新标准券', '国标准券']
-    pos = pos[(pos['vol']!=0)&(~pos.index.isin(status_extract_names))].copy()        # 已清仓不看
+    pos = pos[(pos['vol']!=0)&(~pos.index.isin(status_extract_codes))].copy()        # 已清仓不看
     return pos
-# 获取账户状态 净值，现金
-def get_account():
-    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
-    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
 # 获取订单状态 当日没有订单返回空表（但是有columns） 当天订单
 def get_order():
     order_info = get_trade_detail_data(ACCOUNT, account_type, 'ORDER')
