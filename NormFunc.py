@@ -84,7 +84,8 @@ def get_pos():
     if pos.empty:
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
-    pos = pos[(pos['vol']!=0)].copy()        # 已清仓不看
+    extract_names = ['新标准券', '国标准券']
+    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()  # 已清仓不看，去掉逆回购重复输出
     return pos
 # 忽略逆回购订单、交割单
 status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
