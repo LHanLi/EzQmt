@@ -69,11 +69,6 @@ def get_snapshot(C, code_list):
 def get_account():
     acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
     return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
-# 忽略逆回购持仓、订单、交割单
-status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']  
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
     position_to_dict = lambda pos: {
@@ -89,9 +84,13 @@ def get_pos():
     if pos.empty:
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
-    pos_extract_names = ['新标准券', '国标准券']
-    pos = pos[(pos['vol']!=0)&(~pos.index.isin(status_extract_codes))].copy()        # 已清仓不看
+    pos = pos[(pos['vol']!=0)].copy()        # 已清仓不看
     return pos
+# 忽略逆回购订单、交割单
+status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']  
 # 获取订单状态 当日没有订单返回空表（但是有columns） 当天订单
 def get_order():
     order_info = get_trade_detail_data(ACCOUNT, account_type, 'ORDER')
