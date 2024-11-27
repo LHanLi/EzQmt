@@ -3,6 +3,9 @@ import datetime, re, time, os, copy
 import numpy as np
 import pandas as pd
 
+#######################################################################################################
+#############################        自定义参数             ###########################################
+#######################################################################################################
 
 # 1. 每天start_time前1分钟读取strat_file文件，获取目标调仓目标权重；
 # 2. start_time计算当前各标的持仓市值与目标市值所需要交易金额，制定交易计划；
@@ -10,25 +13,25 @@ import pandas as pd
 # 4. summary_time总结交易结果（该时点策略市值与持仓权重）。
 
 # 基本设置
-ACCOUNT = '0000'            # 填写您的账号
+ACCOUNT = ''            # 填写您的账号
 account_type = 'STOCK'
 multiples = 10                                              # 可转债每手十张
 strategy_name = 'rebalancing'                               # 策略名称
-logloc = 'D:/cloud/monitor/QMT/LogRunning/'                 # 您的日志文件位置
+logloc = ''                 # 您的日志文件位置
 logfile = logloc + ACCOUNT + '-' + strategy_name + '.txt'  
 
-# 策略输入
-stratfile_loc = 'D:/cloud/monitor/strat/'                     # 您的策略文件（lude篮子文件）存储位置
-stratfile_name = 'basket'   # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
-extract_codes = ['118040.SH', ]   # ！！！此篮子外的标的可能被卖出！！！
-buy_num = 5                     # 此排名内买入
-holding_num = 8                 # 此排名内不卖出
+# 策略输入         
+stratfile_loc = 'D:/cloud/monitor/strat/'                    # 您的lude篮子文件存储位置
+stratfile_name = 'basket'                 # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
+extract_codes = []                        # ！！！此篮子外的标的可能被卖出！！！
+buy_num = 5                               # 此排名内买入
+holding_num = 6                           # 此排名内不卖出
 
 # 交易设置
-strat_cap = 100e4           # 全部篮子标的目标市值
-start_time = '145000'      # 开始交易时点
+strat_cap = 15e4           # 全部篮子标的目标市值
+start_time = '143000'      # 开始交易时点
 interval = 30              # 每隔interval秒挂单一次
-dur_time = 600             # 最长交易时间（秒）
+dur_time = 300             # 最长交易时间（秒）
 wait_dur = interval*0.8    # 订单等待wait_dur秒后未成交撤单
 tolerance = 0.01           # 买卖挂单超价（%）
 delta_min = 3000           # 最小挂单金额
@@ -45,6 +48,8 @@ end_time = end_time.strftime("%H%M%S")
 summary_time = datetime.datetime.strptime(end_time, "%H%M%S")\
       + datetime.timedelta(seconds=60)    # 交易结束后一分钟总结交易结果
 summary_time = summary_time.strftime("%H%M%S")
+
+
 
 #######################################################################################################
 #############################        常用函数模块             ###########################################
@@ -77,7 +82,7 @@ def log(*txt):
 
 ########################################### 行情数据 ###################################################
 
-# 获取行情快照数据 DataFrame, index:code
+# 获取行情快照数据 DataFrame, index:code 
 SHmul = 10
 SZmul = 10
 def get_snapshot(C, code_list):
@@ -113,6 +118,10 @@ def get_snapshot(C, code_list):
 
 ########################################### 账户状态 ###################################################
 
+# 获取账户状态 净值，现金
+def get_account():
+    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
+    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
     position_to_dict = lambda pos: {
@@ -129,16 +138,13 @@ def get_pos():
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
     extract_names = ['新标准券', '国标准券']
-    # , 'GC001', 'GC002', 'GC003', 'GC004', 'GC007', \
-    #                 'GC014', 'GC028', 'GC091', 'GC182', \
-    #                 'Ｒ-001', 'Ｒ-002', 'Ｒ-003', 'Ｒ-004', 'Ｒ-007',\
-    #                'Ｒ-014', 'Ｒ-028', 'Ｒ-091', 'Ｒ-182']            # 逆回购仓位不看
-    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()        # 已清仓不看
+    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()  # 已清仓不看，去掉逆回购重复输出
     return pos
-# 获取账户状态 净值，现金
-def get_account():
-    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
-    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
+# 忽略逆回购订单、交割单
+status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']  
 # 获取订单状态 当日没有订单返回空表（但是有columns） 当天订单
 def get_order():
     order_info = get_trade_detail_data(ACCOUNT, account_type, 'ORDER')
@@ -162,12 +168,8 @@ def get_order():
     if order.empty:
         return pd.DataFrame(columns=['id', 'date', 'code', 'sub_time', 'trade_type',\
             'price', 'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark'])
-    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     order = order[(order['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
-                    (~order['code'].isin(extract_codes))].copy()
+                    (~order['code'].isin(status_extract_codes))].copy()
     order = order.set_index('id')
     return order[['date', 'code', 'sub_time', 'trade_type', 'price',\
         'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark']] 
@@ -191,22 +193,21 @@ def get_deal():
     if deal.empty:
         return pd.DataFrame(columns=['id', 'order_id', 'code', 'date', 'deal_time',\
             'trade_type', 'price', 'vol', 'amount', 'remark'])
-    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     deal = deal[(deal['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
-                    (~deal['code'].isin(extract_codes))].copy()
+                    (~deal['code'].isin(status_extract_codes))].copy()
     return deal[['id', 'order_id', 'code', 'date', 'deal_time',\
         'trade_type', 'price', 'vol', 'amount', 'remark']]
 
 ########################################### 买卖挂单 ###################################################
 
 # 撤单 超过wait_dur s的订单取消
-def cancel_order(C, wait_dur):
+def cancel_order(C, wait_dur, stratname=None):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    # 属于该策略
+    if stratname!=None:
+        order = order[order['remark']==stratname].copy()
     if not order.empty:
         # 超过等待时间撤单 insert_time 为1900年
         order['sub_time'] = order['sub_time'].map(lambda x: datetime.datetime.strptime(x, "%H%M%S"))
@@ -233,6 +234,8 @@ def cancel_order_price(C, r, stratname=None):
             delta = delta[delta>r]
             for orderid in delta.index:
                 cancel(orderid, ACCOUNT, account_type, C)
+#strategy_name = 'craft'
+#multiples = 10
 #卖出 
 def sell(C, code, price, vol, strategyName=strategy_name, remark=strategy_name):
     vol = int((vol//multiples)*multiples)
@@ -263,8 +266,9 @@ class a():
 
 
 
-################################################策略############################################
-
+#######################################################################################################
+#############################        策略主代码             ###########################################
+#######################################################################################################
 
 
 # 初始化准备
@@ -276,11 +280,13 @@ def prepare(C):
     df = pd.read_csv(strat_file, encoding='gbk')
     log('策略文件', strat_file)
     print('策略文件', strat_file)
-    init_cap = get_pos()['MarketValue']     # 处理全部持仓
+    pos_ = get_pos()
+    init_cap = pos_['MarketValue']
+    init_vol = pos_['vol']
     sorted_codes = df['代码'].astype('str')+'.'+df['市场']
     holding_codes = set(init_cap.index)&set(sorted_codes[:holding_num].values)
     buy_codes = sorted_codes[~sorted_codes.isin(holding_codes)]
-    buy_codes = buy_codes.values[:(buy_num - len(holding_codes))]
+    buy_codes = buy_codes.values[:max(buy_num - len(holding_codes), 0)]
     target_codes = holding_codes|set(buy_codes)-set(extract_codes)
     target_weights = pd.Series(1, index=list(target_codes))
     target_weights = target_weights/target_weights.sum()
@@ -288,16 +294,19 @@ def prepare(C):
     log('目标市值')
     log(A.target_cap)
     A.codes = list((set(A.target_cap.index)|set(init_cap.index))-set(extract_codes))
-    init_cap = init_cap.reindex(A.codes).fillna(0)
+    A.init_cap = init_cap.reindex(A.codes).fillna(0)
+    A.init_vol = init_vol.reindex(A.codes).fillna(0)   # 选中但非持仓转债持仓张数和市值为0
     log('初始持仓')
-    log(init_cap)
+    log(pd.concat([A.init_vol, A.init_cap], axis=1))
     snapshot = get_snapshot(C, A.codes)
     mid_snapshot = snapshot['mid']
-    trade_cap = A.target_cap.reindex(A.codes).fillna(0)-init_cap
-    A.trade_vol = trade_cap/mid_snapshot        
+    trade_cap = A.target_cap.reindex(A.codes).fillna(0)-A.init_cap
+    trade_cap = trade_cap[abs(trade_cap)>=delta_min]
+    A.trade_vol = trade_cap/mid_snapshot
+    sell_codes = list(set(A.codes)-set(A.target_cap.index))   # 清仓标的
+    A.trade_vol.loc[sell_codes] = -A.init_vol.loc[sell_codes]
     log('目标交易张数，市值，即时价格')       # 需成交张数，假设交易时间段价格变化不大（如考虑实时价格难以处理集合竞价）
     log(pd.concat([A.trade_vol, trade_cap, mid_snapshot], axis=1))
-    #log(A.trade_vol)
     A.traded_vol = pd.Series(0, A.codes)   # 已成交张数
     A.remain_times = int(dur_time/interval)  # 剩余挂单轮数
 
@@ -305,6 +314,7 @@ def prepare(C):
 def trader(C):
     if A.remain_times==0:
         return
+    log('第%s/%s轮挂单'%(int(dur_time/interval)-A.remain_times+1, int(dur_time/interval)))
     snapshot = get_snapshot(C, A.codes)
     mid_snapshot = snapshot['mid']
     bidPrice_snapshot = snapshot['bidp1']
@@ -312,51 +322,56 @@ def trader(C):
     lastClose_snapshot = snapshot['lastClose']
     # 涨停不卖出、不排板
     limitup_codes = askPrice_snapshot[askPrice_snapshot.isna()|(askPrice_snapshot==0)]
-    if not limitup_codes.empty:
-        print('涨停不卖出、不排板', limitup_codes)
-        log('涨停不卖出，不排板')
-        log(limitup_codes)
+    limitdown_codes = bidPrice_snapshot[bidPrice_snapshot.isna()|(bidPrice_snapshot==0)]
+    #if not limitup_codes.empty:
+    #    print('涨停不卖出、不排板', limitup_codes)
+    #    log('涨停不卖出，不排板')
+    #    log(limitup_codes)
     should_trade_vol = (A.trade_vol - A.traded_vol).sort_values()  # 先卖再买
     for code, delta_vol in should_trade_vol.items():
+        log('处理 %s'%code)
         if code in limitup_codes.index:
-            print('涨停不卖出、不排板', code)
+            print('涨停不卖出，不排版')
+            log('涨停不卖出，不排板')
             continue
         mean_vol = abs(delta_vol)/A.remain_times  # 平均每次需要交易张数绝对值
         price = mid_snapshot.loc[code]
         if (code in A.target_cap.index)&(abs(delta_vol*price)<delta_min):
-            #print('非清仓且与目标市值差距小于挂单金额')
+            log('非清仓且与目标市值差距小于挂单金额，不交易')
             continue
         else:
             if mean_vol*price<delta_min:
-                #print('单笔成交金额小于最小值，已按最小值和持仓低者挂单。')
+                log('单笔成交金额小于最小值，已按最小值和持仓低者挂单。')
                 vol = min(delta_min/price, abs(delta_vol))
             elif mean_vol*price<delta_max:
                 vol = mean_vol
             else:
-                #print('单笔成交金额超过最大值，已按最大值挂单。')
+                log('单笔成交金额超过最大值，已按最大值挂单。')
                 vol = delta_max/price
         if delta_vol>0:
             # 跌停不买入
-            if np.isnan(bidPrice_snapshot[code])|(bidPrice_snapshot[code]==0):
+            if code in limitdown_codes.index:
                 print('跌停不买入', code)
                 log('跌停不买入', code)
             else:
                 # 不能超过涨停价
                 price = min(lastClose_snapshot[code]*(1+max_upndown), bidPrice_snapshot[code]*(tolerance+1))
                 buy(C, code, price, vol)
-                print('buy', code, price, vol)
+                log('buy %s %s %s'%(code, price, vol))
+                #print('buy', code, price, vol)
                 A.traded_vol.loc[code] += int((vol//multiples)*multiples)
         else:
             price = min(lastClose_snapshot[code]*(1-max_upndown), askPrice_snapshot[code]*(1-tolerance))
             sell(C, code, price, vol)
-            print('sell', code, price, vol)
+            log('sell %s %s %s'%(code, price, vol))
+            #print('sell', code, price, vol)
             A.traded_vol.loc[code] -= int((vol//multiples)*multiples)
     A.remain_times = A.remain_times-1
 
 # 大概率不成交的单子进行撤单
 def order_canceler(C):
-    cancel_order(C, wait_dur)
-    cancel_order_price(C, 0.01)
+    cancel_order(C, wait_dur, strategy_name)
+    cancel_order_price(C, 0.01, strategy_name)
 
 # 交易情况总结
 def summary(C):
@@ -404,3 +419,4 @@ def init(C):
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
     ACCOUNT = account if 'account' in globals() else ACCOUNT
+
