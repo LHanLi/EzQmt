@@ -17,7 +17,7 @@ ACCOUNT = ''            # 填写您的账号
 account_type = 'STOCK'
 multiples = 10                                              # 可转债每手十张
 strategy_name = 'rebalancing'                               # 策略名称
-logloc = ''                 # 您的日志文件位置
+logloc = 'D:/cloud/monitor/QMT/LogRunning/'                 # 您的日志文件位置
 logfile = logloc + ACCOUNT + '-' + strategy_name + '.txt'  
 
 # 策略输入         
@@ -28,7 +28,7 @@ buy_num = 5                               # 此排名内买入
 holding_num = 6                           # 此排名内不卖出
 
 # 交易设置
-strat_cap = 15e4           # 全部篮子标的目标市值
+strat_cap = 100e4           # 全部篮子标的目标市值
 start_time = '143000'      # 开始交易时点
 interval = 30              # 每隔interval秒挂单一次
 dur_time = 300             # 最长交易时间（秒）
