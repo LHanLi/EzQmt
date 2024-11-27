@@ -278,36 +278,38 @@ def prepare(C):
     strat_files = sorted(strat_files)
     strat_file = stratfile_loc + strat_files[-1]
     df = pd.read_csv(strat_file, encoding='gbk')
-    log('策略文件', strat_file)
-    print('策略文件', strat_file)
-    pos_ = get_pos()
-    init_cap = pos_['MarketValue']
-    init_vol = pos_['vol']
-    sorted_codes = df['代码'].astype('str')+'.'+df['市场']
-    holding_codes = set(init_cap.index)&set(sorted_codes[:holding_num].values)
-    buy_codes = sorted_codes[~sorted_codes.isin(holding_codes)]
+    log('读取策略文件', strat_file)
+    print('读取策略文件', strat_file)
+    pos_init = get_pos()    # 初始持仓
+    init_cap = pos_init['MarketValue']
+    init_vol = pos_init['vol']
+    sorted_codes = df['代码'].astype('str')+'.'+df['市场']           # 策略标的按打分排序
+    holding_codes = set(init_cap.index)&set(sorted_codes[:holding_num].values)   # 排名holding_num之内的标的继续持有
+    buy_codes = sorted_codes[~sorted_codes.isin(holding_codes)]                  # 如果继续持有标的不足buy_num只，则需要新买入，按打分排序填充
     buy_codes = buy_codes.values[:max(buy_num - len(holding_codes), 0)]
-    target_codes = holding_codes|set(buy_codes)-set(extract_codes)
+    target_codes = holding_codes|set(buy_codes)-set(extract_codes)               # 目标市值为 继续持有+新买入 标的等权*策略市值，去掉黑名单标的
     target_weights = pd.Series(1, index=list(target_codes))
     target_weights = target_weights/target_weights.sum()
-    A.target_cap = strat_cap*target_weights  # 最终市值
+    trade_codes = list((set(target_codes)|set(init_cap.index))-set(extract_codes))  # 交易涉及标的
+    target_cap = (strat_cap*target_weights).reindex(trade_codes).fillna(0)
     log('目标市值')
-    log(A.target_cap)
-    A.codes = list((set(A.target_cap.index)|set(init_cap.index))-set(extract_codes))
-    A.init_cap = init_cap.reindex(A.codes).fillna(0)
-    A.init_vol = init_vol.reindex(A.codes).fillna(0)   # 选中但非持仓转债持仓张数和市值为0
+    log(target_cap)
+    init_cap = init_cap.reindex(trade_codes).fillna(0)
+    init_vol = init_vol.reindex(trade_codes).fillna(0)   # 选中但非持仓转债持仓张数和市值为0
     log('初始持仓')
-    log(pd.concat([A.init_vol, A.init_cap], axis=1))
-    snapshot = get_snapshot(C, A.codes)
+    log(pd.concat([init_vol, init_cap], axis=1))
+    snapshot = get_snapshot(C, trade_codes)
     mid_snapshot = snapshot['mid']
-    trade_cap = A.target_cap.reindex(A.codes).fillna(0)-A.init_cap
-    trade_cap = trade_cap[abs(trade_cap)>=delta_min]
+    trade_cap = target_cap-init_cap
+    trade_cap.loc[abs(trade_cap)<delta_min] = 0
+    log('目标交易额小于最小变动阈值:'+','.join(list(trade_cap[trade_cap==0].index)))
     A.trade_vol = trade_cap/mid_snapshot
-    sell_codes = list(set(A.codes)-set(A.target_cap.index))   # 清仓标的
-    A.trade_vol.loc[sell_codes] = -A.init_vol.loc[sell_codes]
-    log('目标交易张数，市值，即时价格')       # 需成交张数，假设交易时间段价格变化不大（如考虑实时价格难以处理集合竞价）
+    A.sell_codes = list(set(target_cap[target_cap==0].index)\
+                &set(init_vol[init_vol!=0].index))   # 清仓标的交易张数改为持仓
+    A.trade_vol.loc[A.sell_codes] = -init_vol.loc[A.sell_codes]
+    log('目标交易张数，市值，即时价格')     
     log(pd.concat([A.trade_vol, trade_cap, mid_snapshot], axis=1))
-    A.traded_vol = pd.Series(0, A.codes)   # 已成交张数
+    A.traded_vol = pd.Series(0, A.trade_vol.index)   # 已成交张数
     A.remain_times = int(dur_time/interval)  # 剩余挂单轮数
 
 # 挂单员
@@ -315,7 +317,7 @@ def trader(C):
     if A.remain_times==0:
         return
     log('第%s/%s轮挂单'%(int(dur_time/interval)-A.remain_times+1, int(dur_time/interval)))
-    snapshot = get_snapshot(C, A.codes)
+    snapshot = get_snapshot(C, A.trade_vol.index)
     mid_snapshot = snapshot['mid']
     bidPrice_snapshot = snapshot['bidp1']
     askPrice_snapshot = snapshot['askp1']
@@ -323,25 +325,21 @@ def trader(C):
     # 涨停不卖出、不排板
     limitup_codes = askPrice_snapshot[askPrice_snapshot.isna()|(askPrice_snapshot==0)]
     limitdown_codes = bidPrice_snapshot[bidPrice_snapshot.isna()|(bidPrice_snapshot==0)]
-    #if not limitup_codes.empty:
-    #    print('涨停不卖出、不排板', limitup_codes)
-    #    log('涨停不卖出，不排板')
-    #    log(limitup_codes)
     should_trade_vol = (A.trade_vol - A.traded_vol).sort_values()  # 先卖再买
     for code, delta_vol in should_trade_vol.items():
-        log('处理 %s'%code)
+        log('处理 %s %s'%(code, delta_vol))
         if code in limitup_codes.index:
             print('涨停不卖出，不排版')
             log('涨停不卖出，不排板')
             continue
         mean_vol = abs(delta_vol)/A.remain_times  # 平均每次需要交易张数绝对值
         price = mid_snapshot.loc[code]
-        if (code in A.target_cap.index)&(abs(delta_vol*price)<delta_min):
+        if (code not in A.sell_codes)&(abs(delta_vol*price)<delta_min):
             log('非清仓且与目标市值差距小于挂单金额，不交易')
             continue
         else:
             if mean_vol*price<delta_min:
-                log('单笔成交金额小于最小值，已按最小值和持仓低者挂单。')
+                log('单笔成交金额小于最小值，已按最小值和需要成交张数低者挂单。')
                 vol = min(delta_min/price, abs(delta_vol))
             elif mean_vol*price<delta_max:
                 vol = mean_vol
@@ -379,7 +377,7 @@ def summary(C):
     log(A.traded_vol)
     end_cap = get_pos()['MarketValue']     # 处理全部持仓
     log('结束时持仓')
-    log(end_cap.loc[A.codes])
+    log(end_cap.loc[A.trade_vol.index].fillna(0))
 
 
 
@@ -419,4 +417,3 @@ def init(C):
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
     ACCOUNT = account if 'account' in globals() else ACCOUNT
-
