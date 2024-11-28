@@ -317,7 +317,7 @@ def trader(C):
     if A.remain_times==0:
         return
     log('第%s/%s轮挂单'%(int(dur_time/interval)-A.remain_times+1, int(dur_time/interval)))
-    snapshot = get_snapshot(C, A.trade_vol.index)
+    snapshot = get_snapshot(C, list(A.trade_vol.index))
     mid_snapshot = snapshot['mid']
     bidPrice_snapshot = snapshot['bidp1']
     askPrice_snapshot = snapshot['askp1']
@@ -377,7 +377,7 @@ def summary(C):
     log(A.traded_vol)
     end_cap = get_pos()['MarketValue']     # 处理全部持仓
     log('结束时持仓')
-    log(end_cap.loc[A.trade_vol.index].fillna(0))
+    log(end_cap.loc[list(A.trade_vol.index)].fillna(0))
 
 
 
