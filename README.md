@@ -45,3 +45,7 @@ QMT客户端常用基础函数
 ![image](https://github.com/user-attachments/assets/2790b70e-2011-40d1-9a2d-2e9cb05a30fc)
 
 
+# -------------------- 联系作者 ---------------------
+对于个性化程序交易策略代码需求，可以联系作者。
+![cde0c826807b3836377d0e13cf4bbf4](https://github.com/user-attachments/assets/3954cec9-8d4e-481c-a014-2ec971ab7cb4)
+
