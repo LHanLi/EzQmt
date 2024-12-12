@@ -148,7 +148,7 @@ def get_deal():
 ########################################### 买卖挂单 ###################################################
 
 # 撤单 超过wait_dur s的订单取消
-def cancel_order(C, wait_dur, stratname=None):
+def cancel_order(C, wait_dur=0.1, stratname=None):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
