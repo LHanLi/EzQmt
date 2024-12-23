@@ -1,20 +1,5 @@
 # QMT自动交易及监控脚本
 
-## 安装
-
-### QMT 客户端 配置方法
-![1731993271869](https://github.com/user-attachments/assets/d7852645-305f-4b93-ba9c-87d1a0643e9d)
-
-在模型研究界面，使用.py文件中内容替换图示代码框中全部代码，调整代码中自定义参数，新建策略。
-![1731993357372](https://github.com/user-attachments/assets/d7a5f601-cd73-4daa-a150-55ff65418a2f)
-![1731993389345](https://github.com/user-attachments/assets/0481d6f8-5814-4b2a-b9b8-50345dd450f3)
-
-在模型交易界面，找到刚刚新建的策略，新建策略交易，选择自己的账号和账号类型，运行。
-
-## 备注
-EzQmt 文件夹中脚本除post模块外，适配miniqmt，需使用miniqmt调用。
-EzQmt 文件夹外*.py策略可直接复制到QMT客户端运行，实现简单的必要需求。
-
 # 主要功能
 
 ## QMT 客户端
@@ -43,6 +28,22 @@ QMT客户端常用基础函数
 
 交易滑点分析：
 ![image](https://github.com/user-attachments/assets/2790b70e-2011-40d1-9a2d-2e9cb05a30fc)
+
+
+# 安装
+
+## QMT 客户端 配置方法
+![1731993271869](https://github.com/user-attachments/assets/d7852645-305f-4b93-ba9c-87d1a0643e9d)
+
+在模型研究界面，使用策略文件中内容替换图示代码框中全部代码，调整代码中自定义参数，新建策略。
+![1731993357372](https://github.com/user-attachments/assets/d7a5f601-cd73-4daa-a150-55ff65418a2f)
+![1731993389345](https://github.com/user-attachments/assets/0481d6f8-5814-4b2a-b9b8-50345dd450f3)
+
+在模型交易界面，找到刚刚新建的策略，新建策略交易，选择自己的账号和账号类型，运行。
+
+# 备注
+EzQmt 文件夹中脚本除post模块外，适配miniqmt，需使用miniqmt调用。
+EzQmt 文件夹外*.py策略可直接复制到QMT客户端运行，实现简单的必要需求。
 
 
 # -------------------- 联系作者 ---------------------
