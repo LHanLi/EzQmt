@@ -5,15 +5,16 @@ import pandas as pd
 
 # 每交易日summary_time(16:20)输出账户资产现金、持仓、交割、委托单以及各策略收盘持仓情况
 
+############### 请根据账户和本地配置修改以下部分 #####################
 ACCOUNT = '0000'                                                   # 填写您的账号
 account_type = 'STOCK'
 strategy_name = 'summary'
 
 logfile = 'D:/cloud/monitor/QMT/LogRunning/'                       # 填写您的日志文件保存位置   
-logfile = logfile + ACCOUNT + '-' + strategy_name + '.txt' 
-save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（本策略输出结果）保存位置
+logfile = logfile + ACCOUNT + '-' + strategy_name + '.txt'         
+save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（本策略输出结果）保存位置      
 save_loc = save_loc + ACCOUNT + '/' + account_type + '/'    
-summary_time = '162000'
+summary_time = '162000'               
 
 
 #################################### 以下不可修改 ###################################
@@ -49,6 +50,10 @@ def log(*txt):
 
 ########################################### 账户状态 ###################################################
 
+# 获取账户状态 净值，现金
+def get_account():
+    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
+    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
 # 获取持仓数据 DataFrame index:code, cash  如果没有持仓返回空表（但是有columns） 
 def get_pos():
     position_to_dict = lambda pos: {
@@ -65,16 +70,13 @@ def get_pos():
         return pd.DataFrame(columns=['name', 'vol', 'AvailabelVol', 'MarketValue', 'PositionCost'])
     pos = pos.set_index('code')
     extract_names = ['新标准券', '国标准券']
-    # , 'GC001', 'GC002', 'GC003', 'GC004', 'GC007', \
-    #                 'GC014', 'GC028', 'GC091', 'GC182', \
-    #                 'Ｒ-001', 'Ｒ-002', 'Ｒ-003', 'Ｒ-004', 'Ｒ-007',\
-    #                'Ｒ-014', 'Ｒ-028', 'Ｒ-091', 'Ｒ-182']            # 逆回购仓位不看
-    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()        # 已清仓不看
+    pos = pos[(pos['vol']!=0)&(~pos['name'].isin(extract_names))].copy()  # 已清仓不看，去掉逆回购重复输出
     return pos
-# 获取账户状态 净值，现金
-def get_account():
-    acct_info = get_trade_detail_data(ACCOUNT, account_type, 'account')[0]
-    return {'net':acct_info.m_dBalance, 'cash':acct_info.m_dAvailable}
+# 忽略逆回购订单、交割单
+status_extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
+                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
+                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
+                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']  
 # 获取订单状态 当日没有订单返回空表（但是有columns） 当天订单
 def get_order():
     order_info = get_trade_detail_data(ACCOUNT, account_type, 'ORDER')
@@ -98,12 +100,8 @@ def get_order():
     if order.empty:
         return pd.DataFrame(columns=['id', 'date', 'code', 'sub_time', 'trade_type',\
             'price', 'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark'])
-    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     order = order[(order['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
-                    (~order['code'].isin(extract_codes))].copy()
+                    (~order['code'].isin(status_extract_codes))].copy()
     order = order.set_index('id')
     return order[['date', 'code', 'sub_time', 'trade_type', 'price',\
         'sub_vol', 'dealt_vol', 'remain_vol', 'status', 'frozen', 'remark']] 
@@ -127,12 +125,8 @@ def get_deal():
     if deal.empty:
         return pd.DataFrame(columns=['id', 'order_id', 'code', 'date', 'deal_time',\
             'trade_type', 'price', 'vol', 'amount', 'remark'])
-    extract_codes = ['131810.SZ', '131811.SZ', '131800.SZ', '131809.SZ', '131801.SZ',\
-                     '131802.SZ', '131803.SZ', '131805.SZ', '131806.SZ',\
-                     '204001.SH', '204002.SH', '204003.SH', '204004.SH', '204007.SH',\
-                     '204014.SH', '204028.SH', '204091.SH', '204182.SH']   # 深市、沪市逆回购代码
     deal = deal[(deal['date']==datetime.datetime.today().strftime("%Y%m%d"))&\
-                    (~deal['code'].isin(extract_codes))].copy()
+                    (~deal['code'].isin(status_extract_codes))].copy()
     return deal[['id', 'order_id', 'code', 'date', 'deal_time',\
         'trade_type', 'price', 'vol', 'amount', 'remark']]
 
@@ -149,26 +143,40 @@ class a():
 
 def summary(C):
     today = datetime.datetime.now().date().strftime("%Y%m%d")
+    # 如果有当日状态文件则删除
+    def delete_file(file_path):
+        # 检查文件是否存在
+        if os.path.exists(file_path):
+            os.remove(file_path)  # 删除文件
+        else:
+            pass
+    summary_nams = {'acct':save_loc+'acct-'+today+'.csv',\
+                        'pos':save_loc+'position-'+today+'.csv',\
+                          'order':save_loc+'order-'+today+'.csv',\
+                            'deal':save_loc+'deal-'+today+'.csv',\
+                               'strat_pos':save_loc+'/stratpos-'+today+'.csv'}
+    for f in summary_nams.keys():
+        delete_file(summary_nams[f])
     # 账户
     acct = get_account()
-    pd.Series(acct).to_csv(save_loc+'acct-'+today+'.csv')
+    pd.Series(acct).to_csv(summary_nams['acct'])
     # 当日持仓记录 
     pos = get_pos()
-    pos.to_csv(save_loc+'position-'+today+'.csv', encoding='utf_8_sig')
+    pos.to_csv(summary_nams['pos'], encoding='utf_8_sig')
     # 当日委托单
     order = get_order()
-    order.to_csv(save_loc+'order-'+today+'.csv')
+    order.to_csv(summary_nams['order'])
     # 当日成交
     deal = get_deal()
-    deal.to_csv(save_loc+'deal-'+today+'.csv', index=False)
+    deal.to_csv(summary_nams['deal'], index=False)
     # 总结当日成交更新策略持仓
     # 前日策略持仓
     stratposfiles =  [f for f in os.listdir(save_loc) if 'stratpos' in f]
+    # 分仓运行第一天假设前一天持仓全为craft
     if len(stratposfiles)!=0:
         prestratpos = sorted(stratposfiles)[-1]
         prestratpos = pd.read_csv(save_loc+prestratpos).set_index(['strat', 'code'])
     else:
-        # 当日买入之前持仓，对于当日成交部分，如果当日卖出则之前为对应策略持仓，如果当日买入则之前不持仓
         firststratpos = pos
         firststratpos['strat'] = 'craft'
         firststratpos = firststratpos.reset_index().set_index(['strat', 'code'])['vol']
@@ -187,29 +195,37 @@ def summary(C):
     deal_['vol'] = deal_['vol']*deal_['trade_type'].map(lambda x: 1 if x==48 else -1)
     summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum()
     # 当日策略持仓
-    todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0).reset_index()
-    todaystratpos['temp_sort'] = todaystratpos['strat'].apply(lambda x: 0 if x == 'craft' else 1)
-    todaystratpos = todaystratpos.sort_values(by='temp_sort').set_index(['strat', 'code'])['vol']
-    negativepos = todaystratpos[todaystratpos<0].copy()
-    todaystratpos = todaystratpos[todaystratpos>0].copy()
-    # 每一个负持仓先从craft策略持仓开始偷
-    for i,v in negativepos.items():
-        indexs = todaystratpos.loc[:, [i[1]], :].index
-        for idex in indexs:
-            remain_vol = todaystratpos.loc[idex] + v
-            if remain_vol>0:
-                todaystratpos.loc[idex] = remain_vol
-            else:
-                todaystratpos.loc[idex] = 0
-                v = remain_vol
-                continue
-    todaystratpos = todaystratpos[todaystratpos>0].copy()
-    todaystratpos.reset_index().to_csv(save_loc+'/stratpos-'+today+'.csv', index=False)
+    if summarydeal.empty:
+        todaystratpos = prestratpos['vol']
+    else:
+        # 根据交割单调整策略持仓
+        todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0).reset_index()
+        todaystratpos['temp_sort'] = todaystratpos['strat'].apply(lambda x: 'AAA' if x == 'craft' else x)
+        todaystratpos = todaystratpos.sort_values(by='temp_sort').set_index(['strat', 'code'])['vol']
+        negativepos = todaystratpos[todaystratpos<0].copy()
+        todaystratpos = todaystratpos[todaystratpos>0].copy()
+        # 每一个负持仓先从craft策略持仓开始偷
+        for i,v in negativepos.items():
+            indexs = todaystratpos.loc[:, [i[1]], :].index
+            for idex in indexs:
+                remain_vol = todaystratpos.loc[idex] + v
+                if remain_vol>0:
+                    todaystratpos.loc[idex] = remain_vol
+                else:
+                    todaystratpos.loc[idex] = 0
+                    v = remain_vol
+                    continue
+        todaystratpos = todaystratpos[todaystratpos>0].copy()
+    # 如果发生转股等情况（持仓没有交割而消失和产生）则按照之前的策略持仓
+    # 检查策略分仓是否正确
+    #print('warning 策略分仓有误')
+    todaystratpos.reset_index().to_csv(summary_nams['strat_pos'], index=False)
     log('summary success')
 
 
 # 初始化函数 主程序
 def init(C):
+    #summary(C)
     # 存储全局变量
     global A
     A = a()
@@ -227,8 +243,12 @@ def init(C):
                 pass
         return wrapper
     # 每日定时定点summary函数
-    C.run_time('summary', "1d", "2024-01-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], \
+    global f
+    f = trade_time(summary)
+    C.run_time('f', "1d", "2024-01-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], \
         summary_time[4:6]), "SH") # 输出今日委托
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
     ACCOUNT = account if 'account' in globals() else ACCOUNT 
+
+
