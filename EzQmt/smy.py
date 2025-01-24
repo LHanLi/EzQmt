@@ -328,10 +328,14 @@ class account():
             pos_amount = pos_['MarketValue'].groupby('code').mean()
             pos_amount.name = '平均持仓金额(元)'
             self.contri[strat] = pd.concat([pos_name, pos_amount, pos_ratio, pnl_total], axis=1).sort_values(by='总盈亏') 
-    # 净值
-    def pnl(self, strat='all'):
+    # 净值  default 默认值， zero 0基准
+    def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
         end_date = self.df_contri[strat].index[-1]
+        if benchmark=='default':
+            benchmark = self.benchmark
+        elif benchmark=='zero':
+            benchmark = pd.DataFrame(pd.Series(0, index=self.benchmark.index)) 
         if strat=='all':
             equity = self.net['net']
             plot_returns = self.net['returns']
@@ -340,7 +344,7 @@ class account():
                         reindex(self.df_contri[strat].index).ffill()
             plot_returns = self.df_contri[strat].sum(axis=1)/equity
 
-        self.post0 = FB.post.ReturnsPost(plot_returns, self.benchmark)
+        self.post0 = FB.post.ReturnsPost(plot_returns, benchmark)
         plt, fig, ax = FB.display.matplot()
         lb = []
         # 策略走势
@@ -348,21 +352,21 @@ class account():
         lb.append(l)
         # 基准走势
         colors = ['C0', 'C1', 'C2', 'C4', 'C5', 'C6', 'C7', 'C8']
-        for i in range(len(self.benchmark.columns)):
-            benchmark_returns = self.benchmark.iloc[:, i].loc[self.net.index[0]:self.net.index[-1]]
+        for i in range(len(benchmark.columns)):
+            benchmark_returns = benchmark.iloc[:, i].loc[self.net.index[0]:self.net.index[-1]]
             l, = ax.plot((benchmark_returns+1).cumprod(), colors[i])
             lb.append(l)
         # 策略净资产
         ax2 = ax.twinx()
         l, = ax2.plot(equity/1e4, c='C3', alpha=0.5, ls='--')
         lb.append(l)
-        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+list(self.benchmark.columns)+\
+        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+list(benchmark.columns)+\
                     [('组合总' if strat=='all' else '策略') +  '资产（右）'],\
                     bbox_to_anchor=(0.9, -0.2), ncol=3)
         ax.set_title('资金账号：%s****%s'%(str(self.accnum)[:4], str(self.accnum)[-4:]) if strat=='all' else\
                         '策略：%s'%strat)
         ax2.set_ylabel('(万元)')
-        if if_hide:
+        if self.if_hide:
             ax2.set_yticks(ax2.get_yticks(), ['*.*' for i in ax2.get_yticks()])
         ax.set_ylabel('净值走势')
         ax.set_xlim(start_date, end_date)
@@ -398,7 +402,7 @@ class account():
             #split_strats_pos = split_strats_pos.drop(columns='现金')
         ax.stackplot(split_strats_pos.index, split_strats_pos.values.T, \
                         labels=split_strats_pos.columns, alpha=0.8)
-        if if_hide:
+        if self.if_hide:
             ax.set_yticks(ax.get_yticks(), ['*.*' for i in ax.get_yticks()])
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         if ratio:
@@ -430,7 +434,7 @@ class account():
             ax.set_ylabel('策略归一化净值')
         else:
             ax.set_ylabel('（元）')
-        if if_hide:
+        if self.if_hide:
             ax.set_yticks(ax.get_yticks(), ['*.*' for i in ax.get_yticks()])
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         FB.post.check_output()
