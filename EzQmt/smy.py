@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import FreeBack as FB
-import os
+import os,datetime
 
 class account():
     # 总结文件根目录，进出资金记录[('yyyy-mm-dd', 进出金额),..]，起止日期，业绩基准，转股信息（{转债代码：（股票代码，转股价）}，是否隐藏具体金额，策略合并
@@ -227,7 +227,7 @@ class account():
                 # 首日策略持仓
                 todaystratpos = todaystratpos0.add(buy_deal, fill_value=0)
             else:
-                prestratpos = pd.read_csv(summaryloc+'/stratpos-'+\
+                prestratpos = pd.read_csv(self.summary_loc+'/stratpos-'+\
                     self.net.index[np.searchsorted(self.net.index, date, side='left')-1].strftime("%Y%m%d")+'.csv').\
                         set_index(['strat', 'code'])['vol']
                 net_deal = deal.groupby(['strat', 'code'])['vol'].sum()
@@ -249,7 +249,7 @@ class account():
                 todaystratpos = todaystratpos.add(negpos.set_index(['strat', 'code'])['vol'], fill_value=0)
                 negpos = todaystratpos[todaystratpos<0].copy()
             todaystratpos = todaystratpos[todaystratpos!=0]
-            todaystratpos.to_csv(summaryloc+'/stratpos-'+date.strftime("%Y%m%d")+'.csv')
+            todaystratpos.to_csv(self.summary_loc+'/stratpos-'+date.strftime("%Y%m%d")+'.csv')
             todaystratpos = todaystratpos.reset_index()
             todaystratpos['date'] = date
             todaystratpos = todaystratpos.set_index(['date', 'strat', 'code'])
