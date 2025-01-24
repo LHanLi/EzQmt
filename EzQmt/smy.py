@@ -78,8 +78,8 @@ class account():
             unknown_value['code'] = 'unknown'
             pos = pd.concat([pos, unknown_value.set_index(['date', 'code'])]).sort_index()
         pos.loc[pos.index.get_level_values(1)=='unknown', 'PositionCost'] = 0 
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'name'] = '主账号外持仓'
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'price'] = 1 
+        pos.loc[pos.index.get_level_values(1)=='unknown', 'name'] = '港股通等持仓'
+        pos.loc[pos.index.get_level_values(1)=='unknown', 'price'] = 1
         pos.loc[pos.index.get_level_values(1)=='unknown', 'vol'] =  \
                     pos.loc[pos.index.get_level_values(1)=='unknown', 'MarketValue']
         pos.loc[pos.index.get_level_values(1)=='unknown', 'AvailableVol'] = \
@@ -112,7 +112,7 @@ class account():
         deal = deal.set_index('time').sort_index()
         deal['date'] = deal.index.map(lambda x :pd.to_datetime(x.date()))
         deal.loc[deal['strat'].isna(), 'strat'] = 'craft'  # 未备注标记为craft
-        # 将转股委托变为成交订单
+        # 将转股委托变为成交订单   次日9：15卖出转债，买入股票
         if self.conv_stk != {}:
             order_file = sorted([f for f in os.listdir(self.summary_loc) if ('order' in f) and \
                                     (f.split('-')[1].split('.')[0]>=self.start_date) and (f.split('-')[1].split('.')[0]<=self.end_date)])
@@ -167,7 +167,6 @@ class account():
         deal = pd.concat([deal, self.nihuigou_deal])
         # 申购新股新债转化为订单
         # 申购（**发债）转为当日16:00买入，代码转变（**发债改为**）当日9:00卖出
-        #unstackpos = self.pos[self.pos['name']!='逆回购']['vol'].unstack().fillna(0)
         unstackpos = self.pos['vol'].unstack().fillna(0)
         deltapos  = (unstackpos-unstackpos.shift()).stack()
         deltapos = deltapos[deltapos!=0].copy()   # 持仓变化
@@ -177,7 +176,12 @@ class account():
         subscrible_deal = deltapos.sub(net_deal, fill_value=0)
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
-        subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
+        print('当前交割记录和持仓不匹配标的：', subscrible_deal['code'].unique())
+        try:
+            subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
+        except:
+            print('请检查可转债转股信息是否添加', subscrible_deal['code'].unique())
+            return 
         subscrible_deal['trade_type'] = subscrible_deal['vol'].map(lambda x: 48 if x>0 else 49)
         subscrible_deal['time'] = subscrible_deal['date'].map(lambda x: x + datetime.timedelta(hours=9))
         subscrible_deal['amount'] = -subscrible_deal['vol']*subscrible_deal['price']
@@ -185,7 +189,22 @@ class account():
                 subscrible_deal['vol'].map(lambda x: datetime.timedelta(hours=16 if x>0 else 9))
         subscrible_deal['strat'] = 'craft'
         self.subscrible_deal = subscrible_deal.set_index('time')        
-        self.deal = pd.concat([deal, self.subscrible_deal])
+        # 主账号外持仓
+        self.out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
+        self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
+        self.out_deal['strat'] = '港股通等持仓'
+        if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
+            init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
+            init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
+            init_out_deal['trade_type'] = 48
+            init_out_deal['amount'] = -init_out_deal['MarketValue']
+            init_out_deal['strat'] = '港股通等持仓'
+            init_out_deal = init_out_deal.set_index('time')[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
+            self.out_deal = pd.concat([init_out_deal, self.out_deal])
+        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'amount'] = 0 
+        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'vol'] = 0 
+        # 全部订单
+        self.deal = pd.concat([deal, self.subscrible_deal, self.out_deal]).sort_index()
         # 策略改名
         self.deal['strat'] = self.deal['strat'].map(lambda x: \
                 x if x not in self.renamestrat.keys() else self.renamestrat[x]) 
@@ -193,17 +212,6 @@ class account():
     # 订单数据（包含转股信息）
     def get_order(self):
         pass 
-    # 按策略拆分持仓
-    def get_stratpos(self):
-        stratpos_file = sorted([f for f in os.listdir(self.summary_loc) if ('stratpos' in f) and \
-            (f.split('-')[1].split('.')[0]>=self.start_date) and (f.split('-')[1].split('.')[0]<=self.end_date)])
-        stratpos = []
-        for f in stratpos_file:
-            date = f[-12:-4]
-            onedaystratpos = pd.read_csv(self.summary_loc+'/'+f)
-            onedaystratpos['date'] = pd.to_datetime(date)
-            stratpos.append(onedaystratpos)
-        self.stratpos = pd.concat(stratpos).set_index(['date', 'strat', 'code'])
     def cal_stratpos(self):
         stratpos = []
         for date in self.net.index:
@@ -233,8 +241,6 @@ class account():
                 net_deal = deal.groupby(['strat', 'code'])['vol'].sum()
                 todaystratpos = prestratpos.add(net_deal, fill_value=0)
             # 如果有策略的某标的持仓为负，则该部分持仓归为持仓该标的数量最多的策略
-            #negpos = todaystratpos[todaystratpos<0].copy()
-            #if not negpos.empty:
             negpos = todaystratpos[todaystratpos<0].copy()
             while not negpos.empty:
                 #print('%s,策略持仓为负:'%date)
@@ -275,9 +281,12 @@ class account():
         for strat in self.strats+['all']: 
             if strat=='all':
                 pos_ = self.pos
-                deal_ = self.deal
+                deal_ = self.deal[self.deal['strat']!='港股通等持仓']  # 计算收益时忽略港股通等持仓订单
             else:
                 pos_ = self.split_strats[strat][0]
+                #if strat=='港股通等持仓':
+                #   deal_ = self.deal[[]]
+                #else:
                 deal_ = self.split_strats[strat][1]
             all_tradedates = list(pos_.index.get_level_values(0))+list(deal_['date'].values)
             # T日相对T-1日策略持仓市值变动
@@ -308,8 +317,12 @@ class account():
             amountlend2othersT0 = (amountlend2othersT0*VWAP).dropna()  # 前日策略无持仓标的按照成交均价计价
             deal_otherstrats = pd.concat([amountlend2others, amountlend2othersT0]).sort_index()
             deal_otherstrats = deal_otherstrats.unstack().fillna(0)
+            if 'unknown' in deal_otherstrats.columns:
+                deal_otherstrats.loc[:, 'unknown'] = 0
             # 收益分解
-            if not pos_.empty:
+            if strat=='港股通等持仓':
+                contri_strat = pos_delta.fillna(0)
+            elif not pos_.empty:
                 contri_strat = pos_delta.add(deal_net, fill_value=0).fillna(0).add(deal_otherstrats, fill_value=0)
             else:
                 contri_strat = deal_net.fillna(0).add(deal_otherstrats, fill_value=0)
@@ -440,5 +453,3 @@ class account():
         FB.post.check_output()
         plt.savefig('output/%s_strats_pnl.png'%self.accnum, bbox_inches='tight')
         plt.show()
-    ## 单策略pnl
-    #def pnl(self):
