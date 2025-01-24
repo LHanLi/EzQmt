@@ -402,7 +402,7 @@ class account():
             #split_strats_pos = split_strats_pos.drop(columns='现金')
         ax.stackplot(split_strats_pos.index, split_strats_pos.values.T, \
                         labels=split_strats_pos.columns, alpha=0.8)
-        if self.if_hide:
+        if (~ratio) & self.if_hide:
             ax.set_yticks(ax.get_yticks(), ['*.*' for i in ax.get_yticks()])
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         if ratio:
@@ -434,7 +434,7 @@ class account():
             ax.set_ylabel('策略归一化净值')
         else:
             ax.set_ylabel('（元）')
-        if self.if_hide:
+        if (~ratio) & self.if_hide:
             ax.set_yticks(ax.get_yticks(), ['*.*' for i in ax.get_yticks()])
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         FB.post.check_output()
