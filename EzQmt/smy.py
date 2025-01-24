@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import FreeBack as FB
 import os
 
