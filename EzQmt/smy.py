@@ -328,14 +328,14 @@ class account():
             pos_amount = pos_['MarketValue'].groupby('code').mean()
             pos_amount.name = '平均持仓金额(元)'
             self.contri[strat] = pd.concat([pos_name, pos_amount, pos_ratio, pnl_total], axis=1).sort_values(by='总盈亏') 
-    # 净值  default 默认值， zero 0基准
+    # 净值  default 默认值， None 0基准
     def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
         end_date = self.df_contri[strat].index[-1]
-        if benchmark=='default':
-            benchmark = self.benchmark
-        elif benchmark=='zero':
+        if type(benchmark)==type(None):
             benchmark = pd.DataFrame(pd.Series(0, index=self.benchmark.index)) 
+        elif benchmark=='default':
+            benchmark = self.benchmark
         if strat=='all':
             equity = self.net['net']
             plot_returns = self.net['returns']
