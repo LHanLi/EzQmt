@@ -98,7 +98,7 @@ deal_comm[['comm_close', 'comm_open', 'comm_mco', 'comm_avg']].mean()
 
 自动拆单、挂撤单，将持仓市值占比调整至目标值。
 
-输入为lude格式的策略篮子文件，支持阈值调仓。
+输入为lude（禄得）格式的策略篮子文件，支持阈值调仓。
 
 
 # 安装/配置
