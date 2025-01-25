@@ -164,7 +164,7 @@ class account():
         nihuigou_sell['time'] = nihuigou_sell['date'] + datetime.timedelta(hours=8)  # T+1日8:00,逆回购变为现金
         self.nihuigou_deal = pd.concat([nihuigou_buy.set_index('time'), nihuigou_sell.set_index('time')])
         deal = pd.concat([deal, self.nihuigou_deal])
-        # 申购新股新债转化为订单
+        # 账户总资产和订单结算结果差异转化为申购新股新债或账号外持仓
         # 申购（**发债）转为当日16:00买入，代码转变（**发债改为**）当日9:00卖出
         unstackpos = self.pos['vol'].unstack().fillna(0)
         deltapos  = (unstackpos-unstackpos.shift()).stack()
@@ -175,7 +175,7 @@ class account():
         subscrible_deal = deltapos.sub(net_deal, fill_value=0)
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
-        print('当前交割记录和持仓不匹配标的：', subscrible_deal['code'].unique(), \
+        print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
               '按申购新股/新债处理')
         try:
             subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
@@ -201,9 +201,10 @@ class account():
                 init_out_deal['trade_type'] = 48
                 init_out_deal['amount'] = -init_out_deal['MarketValue']
                 init_out_deal['strat'] = '港股通等持仓'
-                init_out_deal = init_out_deal.set_index('time')[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
+                init_out_deal = init_out_deal.set_index('time')\
+                    [['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
                 self.out_deal = pd.concat([init_out_deal, self.out_deal])
-            self.deal = pd.concat([deal, self.out_deal])
+            deal = pd.concat([deal, self.out_deal])
         # 全部订单
         self.deal = pd.concat([deal, self.subscrible_deal]).sort_index()
         # 策略改名
