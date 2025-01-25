@@ -6,15 +6,15 @@ import pandas as pd
 # 每交易日summary_time(16:20)输出账户资产现金、持仓、交割、委托单以及各策略收盘持仓情况
 
 ############### 请根据账户和本地配置修改以下部分 #####################
-ACCOUNT = '0000'                                                   # 填写您的账号
+ACCOUNT = '**********'                                                   # 填写您的资金账号
 account_type = 'STOCK'
 strategy_name = 'summary'
 
 logfile = 'D:/cloud/monitor/QMT/LogRunning/'                       # 填写您的日志文件保存位置   
-logfile = logfile + ACCOUNT + '-' + strategy_name + '.txt'         
-save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（本策略输出结果）保存位置      
+logfile = logfile + ACCOUNT + '-' + strategy_name + '.txt' 
+save_loc = 'D:/cloud/monitor/QMT/summary/'                         # 填写您的结算文件（本策略输出结果）保存位置
 save_loc = save_loc + ACCOUNT + '/' + account_type + '/'    
-summary_time = '162000'               
+summary_time = '162000'
 
 
 #################################### 以下不可修改 ###################################
@@ -250,5 +250,3 @@ def init(C):
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
     ACCOUNT = account if 'account' in globals() else ACCOUNT 
-
-
