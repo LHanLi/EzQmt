@@ -343,6 +343,43 @@ class account():
             pos_amount = pos_['MarketValue'].groupby('code').mean()
             pos_amount.name = '平均持仓金额(元)'
             self.contri[strat] = pd.concat([pos_name, pos_amount, pos_ratio, pnl_total], axis=1).sort_values(by='总盈亏') 
+    # 计算交易滑点（按照开盘价/收盘价/开盘收盘平均价/VWAP四种基准），需提供分钟线数据。
+    def cal_deal_comm(self, min_data, deal0):
+        deal0['date'] = deal0['date'] + deal0.index.map(lambda x: \
+                datetime.timedelta(hours=15, minutes=0) if ((x.hour==15)&(x.minute==0))|((x.hour==14)&(x.minute==59)) \
+                    else datetime.timedelta(hours=x.hour, minutes=x.minute+1))
+        deal0 = deal0.set_index(['date', 'code'])
+        # 正为买入，负为卖出
+        bought_deal = deal0[deal0['trade_type']==48].copy()
+        sold_deal = deal0[deal0['trade_type']==49].copy()
+        bought_vol = bought_deal.groupby(['date', 'code'])['vol'].sum()
+        bought_vol.name = 'myvol'
+        bought_amount = -bought_deal.groupby(['date', 'code'])['amount'].sum()
+        bought_amount.name = 'myamount'
+        bought = pd.concat([bought_vol, bought_amount], axis=1)
+        bought['type'] = 'buy'
+        bought['price'] = bought['myamount']/bought['myvol']
+        bought = bought.join(min_data).dropna()
+        sold_vol = -sold_deal.groupby(['date', 'code'])['vol'].sum()
+        sold_vol.name = 'myvol'
+        sold_amount = sold_deal.groupby(['date', 'code'])['amount'].sum()
+        sold_amount.name = 'myamount'
+        sold = pd.concat([sold_vol, sold_amount], axis=1)
+        sold['type'] = 'sell'
+        sold['price'] = sold['myamount']/sold['myvol']
+        sold = sold.join(min_data).dropna()
+        # 滑点
+        bought['comm_close'] = 1e4*(bought['price']-bought['close'])/bought['close']
+        sold['comm_close'] = 1e4*(sold['close']-sold['price'])/sold['close']
+        bought['comm_open'] = 1e4*(bought['price']-bought['open'])/bought['open']
+        sold['comm_open'] = 1e4*(sold['open']-sold['price'])/sold['open']
+        # open close 平均价
+        bought['comm_mco'] = 1e4*(bought['price']-(bought['close']+bought['open'])/2)/((bought['close']+bought['open'])/2)
+        sold['comm_mco'] = 1e4*((sold['close']+sold['open'])/2-sold['price'])/((sold['close']+sold['open'])/2)
+        bought['comm_avg'] = 1e4*(bought['price']-bought['avg'])/bought['avg']
+        sold['comm_avg'] = 1e4*(sold['avg']-sold['price'])/sold['avg']
+        deal_comm = pd.concat([bought, sold]).sort_index()
+        return deal_comm
     # 净值  default 默认值， None 0基准
     def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
