@@ -81,6 +81,17 @@ acct0.contri[strat]
 
 ![image](https://github.com/user-attachments/assets/71897e1e-6c0e-4f7f-b885-1752600a6431)
 
+### 交易滑点分析（单边）
+'''
+需提供分钟线数据（开盘集合竞价时间戳为9：30，9：30~9：31时间戳为9：31）
+'''
+
+deal_comm = acct0.cal_deal_comm(min_data, acct0.deal[acct0.deal['strat']=='策略1'].copy())
+
+deal_comm[['comm_close', 'comm_open', 'comm_mco', 'comm_avg']].mean()
+
+![image](https://github.com/user-attachments/assets/2675f059-20b8-4efd-8550-ac9ac52d1fdb)
+
 
 ## 策略
 ### Rebalance.py 仓位再平衡策略
