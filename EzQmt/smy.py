@@ -146,7 +146,7 @@ class account():
             conv_order_buy['code'] = conv_order_buy['code'].map(lambda x: self.conv_stk[x][0])
             self.conv_deal = pd.concat([conv_order_sell, conv_order_buy]).set_index('time')
             deal = pd.concat([deal, self.conv_deal])
-        # 逆回购转化为订单
+        # 逆回购持仓转化为成交订单
         # 申购转为当日15:30现金换券，次日8:00券换现金
         nihuigou_pos = self.pos[self.pos['name']=='逆回购'].reset_index()
         nihuigou_pos['strat'] = '逆回购'
