@@ -3,7 +3,7 @@ import datetime, re, os, time
 import numpy as np
 import pandas as pd
 
-# 每交易日summary_time(16:20)输出账户资产现金、持仓、交割、委托单以及各策略收盘持仓情况
+# 每交易日summary_time(16:20)输出账户当日市值/现金、持仓情况、交易结算情况、申报委托单等信息。
 
 ############### 请根据账户和本地配置修改以下部分 #####################
 ACCOUNT = '**********'                                                   # 填写您的资金账号
