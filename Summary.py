@@ -169,57 +169,6 @@ def summary(C):
     # 当日成交
     deal = get_deal()
     deal.to_csv(summary_nams['deal'], index=False)
-    '''# 总结当日成交更新策略持仓
-    # 前日策略持仓
-    stratposfiles =  [f for f in os.listdir(save_loc) if 'stratpos' in f]
-    # 分仓运行第一天假设前一天持仓全为craft
-    if len(stratposfiles)!=0:
-        prestratpos = sorted(stratposfiles)[-1]
-        prestratpos = pd.read_csv(save_loc+prestratpos).set_index(['strat', 'code'])
-    else:
-        firststratpos = pos
-        firststratpos['strat'] = 'craft'
-        firststratpos = firststratpos.reset_index().set_index(['strat', 'code'])['vol']
-        deal_ = deal.rename(columns={'remark':'strat'}).copy()
-        deal_['vol'] = -deal_['vol']*deal['trade_type'].map(lambda x: 1 if x==48 \
-                        else -1) # >0为卖出，<0为买入 
-        summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum().reset_index()
-        summarydeal['strat'] = summarydeal.apply(lambda x: x['strat'] if x['vol']>0 \
-                                else 'craft', axis=1)
-        summarydeal = summarydeal.set_index(['strat', 'code'])['vol']
-        firststratpos = firststratpos.add(summarydeal, fill_value=0)
-        prestratpos = firststratpos[firststratpos>0].reset_index().set_index(['strat', 'code'])[['vol']]
-    # 当日成交汇总
-    deal_ = deal.rename(columns={'remark':'strat'}).copy()
-    deal_['strat'] = deal_['strat'].replace('', 'craft')
-    deal_['vol'] = deal_['vol']*deal_['trade_type'].map(lambda x: 1 if x==48 else -1)
-    summarydeal = deal_.groupby(['strat', 'code'])['vol'].sum()
-    # 当日策略持仓
-    if summarydeal.empty:
-        todaystratpos = prestratpos['vol']
-    else:
-        # 根据交割单调整策略持仓
-        todaystratpos = prestratpos['vol'].add(summarydeal, fill_value=0).reset_index()
-        todaystratpos['temp_sort'] = todaystratpos['strat'].apply(lambda x: 'AAA' if x == 'craft' else x)
-        todaystratpos = todaystratpos.sort_values(by='temp_sort').set_index(['strat', 'code'])['vol']
-        negativepos = todaystratpos[todaystratpos<0].copy()
-        todaystratpos = todaystratpos[todaystratpos>0].copy()
-        # 每一个负持仓先从craft策略持仓开始偷
-        for i,v in negativepos.items():
-            indexs = todaystratpos.loc[:, [i[1]], :].index
-            for idex in indexs:
-                remain_vol = todaystratpos.loc[idex] + v
-                if remain_vol>0:
-                    todaystratpos.loc[idex] = remain_vol
-                else:
-                    todaystratpos.loc[idex] = 0
-                    v = remain_vol
-                    continue
-        todaystratpos = todaystratpos[todaystratpos>0].copy()
-    # 如果发生转股等情况（持仓没有交割而消失和产生）则按照之前的策略持仓
-    # 检查策略分仓是否正确
-    #print('warning 策略分仓有误')
-    todaystratpos.reset_index().to_csv(summary_nams['strat_pos'], index=False)'''
     log('summary success')
 
 
