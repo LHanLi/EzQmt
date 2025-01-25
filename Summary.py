@@ -169,7 +169,7 @@ def summary(C):
     # 当日成交
     deal = get_deal()
     deal.to_csv(summary_nams['deal'], index=False)
-    # 总结当日成交更新策略持仓
+    '''# 总结当日成交更新策略持仓
     # 前日策略持仓
     stratposfiles =  [f for f in os.listdir(save_loc) if 'stratpos' in f]
     # 分仓运行第一天假设前一天持仓全为craft
@@ -219,7 +219,7 @@ def summary(C):
     # 如果发生转股等情况（持仓没有交割而消失和产生）则按照之前的策略持仓
     # 检查策略分仓是否正确
     #print('warning 策略分仓有误')
-    todaystratpos.reset_index().to_csv(summary_nams['strat_pos'], index=False)
+    todaystratpos.reset_index().to_csv(summary_nams['strat_pos'], index=False)'''
     log('summary success')
 
 
