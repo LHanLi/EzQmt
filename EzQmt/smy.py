@@ -176,7 +176,8 @@ class account():
         subscrible_deal = deltapos.sub(net_deal, fill_value=0)
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
-        print('当前交割记录和持仓不匹配标的：', subscrible_deal['code'].unique())
+        print('当前交割记录和持仓不匹配标的：', subscrible_deal['code'].unique(), \
+              '按申购新股/新债处理')
         try:
             subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
         except:
@@ -191,20 +192,21 @@ class account():
         self.subscrible_deal = subscrible_deal.set_index('time')        
         # 主账号外持仓
         self.out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
-        self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
-        self.out_deal['strat'] = '港股通等持仓'
-        if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
-            init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
-            init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
-            init_out_deal['trade_type'] = 48
-            init_out_deal['amount'] = -init_out_deal['MarketValue']
-            init_out_deal['strat'] = '港股通等持仓'
-            init_out_deal = init_out_deal.set_index('time')[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
-            self.out_deal = pd.concat([init_out_deal, self.out_deal])
-        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'amount'] = 0 
-        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'vol'] = 0 
+        if not self.out_deal.empty:
+            print('存在Stock账号外持仓（港股通等）')
+            self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
+            self.out_deal['strat'] = '港股通等持仓'
+            if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
+                init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
+                init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
+                init_out_deal['trade_type'] = 48
+                init_out_deal['amount'] = -init_out_deal['MarketValue']
+                init_out_deal['strat'] = '港股通等持仓'
+                init_out_deal = init_out_deal.set_index('time')[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
+                self.out_deal = pd.concat([init_out_deal, self.out_deal])
+            self.deal = pd.concat([deal, self.out_deal])
         # 全部订单
-        self.deal = pd.concat([deal, self.subscrible_deal, self.out_deal]).sort_index()
+        self.deal = pd.concat([deal, self.subscrible_deal]).sort_index()
         # 策略改名
         self.deal['strat'] = self.deal['strat'].map(lambda x: \
                 x if x not in self.renamestrat.keys() else self.renamestrat[x]) 
