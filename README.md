@@ -3,9 +3,11 @@
 # 快速开始
 
 ## 账户分析（需配置Summary.py导出策略运行文件）
+
 根据持仓/交割单备注，分析策略持仓，各策略盈亏，分标的盈亏情况。
 
 ### 初始化配置
+
 import EzQmt as qmt
 
 '''
@@ -56,6 +58,7 @@ acct0.contri['all']
 '''
 策略仓位，各策略表现
 '''
+
 acct0.displaystrats_pos()
 
 acct0.displaystrats_pnl()
@@ -81,7 +84,9 @@ acct0.contri[strat]
 
 ## 策略
 ### Rebalance.py 仓位再平衡策略
+
 自动拆单、挂撤单，将持仓市值占比调整至目标值。
+
 输入为lude格式的策略篮子文件，支持阈值调仓。
 
 
