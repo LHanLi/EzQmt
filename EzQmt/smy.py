@@ -154,9 +154,8 @@ class account():
         nihuigou_pos['amount'] = -nihuigou_pos['MarketValue']
         nihuigou_pos = nihuigou_pos[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
         nihuigou_buy = nihuigou_pos.copy()
-        #nihuigou_buy['price'] = -nihuigou_buy['amount']/nihuigou_buy['vol']
         nihuigou_buy['time'] = nihuigou_buy['date'] + datetime.timedelta(hours=15, minutes=30)
-        nihuigou_sell = nihuigou_pos.copy()
+        nihuigou_sell = nihuigou_pos[nihuigou_pos['date']<self.net.index[-1]].copy()  # 如果是最后一天则不添加卖出逆回购订单
         nihuigou_sell['trade_type'] = 49
         nihuigou_sell['vol'] = -nihuigou_sell['vol']
         nihuigou_sell['amount'] = -nihuigou_sell['amount']*(1+nihuigou_sell['price']/100/365)
