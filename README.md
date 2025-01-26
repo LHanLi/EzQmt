@@ -104,6 +104,9 @@ deal_comm[['comm_close', 'comm_open', 'comm_mco', 'comm_avg']].mean()
 # 安装/配置
 
 ## python库安装
+
+pip install FreeBack
+
 pip install EzQmt
 
 ## QMT 客户端 配置方法
