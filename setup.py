@@ -9,7 +9,7 @@ setup(
     # 版本号: 第几次模块增加，第几次函数增加，第几次函数功能修改
     # (每次高级别序号增加后,低级别序号归0)
     # alpha为调试版,beta为测试版,没有后缀为稳定版 
-    version="2.0.0",
+    version="2.1.0",
     author="LH.Li",
     author_email="lh98lee@zju.edu.cn",  
     description='Package for QMT',

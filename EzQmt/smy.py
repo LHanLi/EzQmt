@@ -146,7 +146,7 @@ class account():
             conv_order_buy['code'] = conv_order_buy['code'].map(lambda x: self.conv_stk[x][0])
             self.conv_deal = pd.concat([conv_order_sell, conv_order_buy]).set_index('time')
             deal = pd.concat([deal, self.conv_deal])
-        # 逆回购转化为订单
+        # 逆回购持仓转化为成交订单
         # 申购转为当日15:30现金换券，次日8:00券换现金
         nihuigou_pos = self.pos[self.pos['name']=='逆回购'].reset_index()
         nihuigou_pos['strat'] = '逆回购'
@@ -154,9 +154,8 @@ class account():
         nihuigou_pos['amount'] = -nihuigou_pos['MarketValue']
         nihuigou_pos = nihuigou_pos[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
         nihuigou_buy = nihuigou_pos.copy()
-        #nihuigou_buy['price'] = -nihuigou_buy['amount']/nihuigou_buy['vol']
         nihuigou_buy['time'] = nihuigou_buy['date'] + datetime.timedelta(hours=15, minutes=30)
-        nihuigou_sell = nihuigou_pos.copy()
+        nihuigou_sell = nihuigou_pos[nihuigou_pos['date']<self.net.index[-1]].copy()  # 如果是最后一天则不添加卖出逆回购订单
         nihuigou_sell['trade_type'] = 49
         nihuigou_sell['vol'] = -nihuigou_sell['vol']
         nihuigou_sell['amount'] = -nihuigou_sell['amount']*(1+nihuigou_sell['price']/100/365)
@@ -167,7 +166,7 @@ class account():
         nihuigou_sell['time'] = nihuigou_sell['date'] + datetime.timedelta(hours=8)  # T+1日8:00,逆回购变为现金
         self.nihuigou_deal = pd.concat([nihuigou_buy.set_index('time'), nihuigou_sell.set_index('time')])
         deal = pd.concat([deal, self.nihuigou_deal])
-        # 申购新股新债转化为订单
+        # 账户总资产和订单结算结果差异转化为申购新股新债或账号外持仓
         # 申购（**发债）转为当日16:00买入，代码转变（**发债改为**）当日9:00卖出
         unstackpos = self.pos['vol'].unstack().fillna(0)
         deltapos  = (unstackpos-unstackpos.shift()).stack()
@@ -178,7 +177,8 @@ class account():
         subscrible_deal = deltapos.sub(net_deal, fill_value=0)
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
-        print('当前交割记录和持仓不匹配标的：', subscrible_deal['code'].unique())
+        print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
+              '按申购新股/新债处理')
         try:
             subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
         except:
@@ -193,20 +193,22 @@ class account():
         self.subscrible_deal = subscrible_deal.set_index('time')        
         # 主账号外持仓
         self.out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
-        self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
-        self.out_deal['strat'] = '港股通等持仓'
-        if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
-            init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
-            init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
-            init_out_deal['trade_type'] = 48
-            init_out_deal['amount'] = -init_out_deal['MarketValue']
-            init_out_deal['strat'] = '港股通等持仓'
-            init_out_deal = init_out_deal.set_index('time')[['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
-            self.out_deal = pd.concat([init_out_deal, self.out_deal])
-        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'amount'] = 0 
-        #self.subscrible_deal.loc[self.subscrible_deal['code']=='unknown', 'vol'] = 0 
+        if not self.out_deal.empty:
+            print('存在Stock账号外持仓（港股通等）')
+            self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
+            self.out_deal['strat'] = '港股通等持仓'
+            if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
+                init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
+                init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
+                init_out_deal['trade_type'] = 48
+                init_out_deal['amount'] = -init_out_deal['MarketValue']
+                init_out_deal['strat'] = '港股通等持仓'
+                init_out_deal = init_out_deal.set_index('time')\
+                    [['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
+                self.out_deal = pd.concat([init_out_deal, self.out_deal])
+            deal = pd.concat([deal, self.out_deal])
         # 全部订单
-        self.deal = pd.concat([deal, self.subscrible_deal, self.out_deal]).sort_index()
+        self.deal = pd.concat([deal, self.subscrible_deal]).sort_index()
         # 策略改名
         self.deal['strat'] = self.deal['strat'].map(lambda x: \
                 x if x not in self.renamestrat.keys() else self.renamestrat[x]) 
@@ -343,6 +345,43 @@ class account():
             pos_amount = pos_['MarketValue'].groupby('code').mean()
             pos_amount.name = '平均持仓金额(元)'
             self.contri[strat] = pd.concat([pos_name, pos_amount, pos_ratio, pnl_total], axis=1).sort_values(by='总盈亏') 
+    # 计算交易滑点（按照开盘价/收盘价/开盘收盘平均价/VWAP四种基准），需提供分钟线数据。
+    def cal_deal_comm(self, min_data, deal0):
+        deal0['date'] = deal0['date'] + deal0.index.map(lambda x: \
+                datetime.timedelta(hours=15, minutes=0) if ((x.hour==15)&(x.minute==0))|((x.hour==14)&(x.minute==59)) \
+                    else datetime.timedelta(hours=x.hour, minutes=x.minute+1))
+        deal0 = deal0.set_index(['date', 'code'])
+        # 正为买入，负为卖出
+        bought_deal = deal0[deal0['trade_type']==48].copy()
+        sold_deal = deal0[deal0['trade_type']==49].copy()
+        bought_vol = bought_deal.groupby(['date', 'code'])['vol'].sum()
+        bought_vol.name = 'myvol'
+        bought_amount = -bought_deal.groupby(['date', 'code'])['amount'].sum()
+        bought_amount.name = 'myamount'
+        bought = pd.concat([bought_vol, bought_amount], axis=1)
+        bought['type'] = 'buy'
+        bought['price'] = bought['myamount']/bought['myvol']
+        bought = bought.join(min_data).dropna()
+        sold_vol = -sold_deal.groupby(['date', 'code'])['vol'].sum()
+        sold_vol.name = 'myvol'
+        sold_amount = sold_deal.groupby(['date', 'code'])['amount'].sum()
+        sold_amount.name = 'myamount'
+        sold = pd.concat([sold_vol, sold_amount], axis=1)
+        sold['type'] = 'sell'
+        sold['price'] = sold['myamount']/sold['myvol']
+        sold = sold.join(min_data).dropna()
+        # 滑点
+        bought['comm_close'] = 1e4*(bought['price']-bought['close'])/bought['close']
+        sold['comm_close'] = 1e4*(sold['close']-sold['price'])/sold['close']
+        bought['comm_open'] = 1e4*(bought['price']-bought['open'])/bought['open']
+        sold['comm_open'] = 1e4*(sold['open']-sold['price'])/sold['open']
+        # open close 平均价
+        bought['comm_mco'] = 1e4*(bought['price']-(bought['close']+bought['open'])/2)/((bought['close']+bought['open'])/2)
+        sold['comm_mco'] = 1e4*((sold['close']+sold['open'])/2-sold['price'])/((sold['close']+sold['open'])/2)
+        bought['comm_avg'] = 1e4*(bought['price']-bought['avg'])/bought['avg']
+        sold['comm_avg'] = 1e4*(sold['avg']-sold['price'])/sold['avg']
+        deal_comm = pd.concat([bought, sold]).sort_index()
+        return deal_comm
     # 净值  default 默认值， None 0基准
     def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
