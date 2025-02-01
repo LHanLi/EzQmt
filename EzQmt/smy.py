@@ -161,7 +161,9 @@ class account():
         nihuigou_sell['vol'] = -nihuigou_sell['vol']
         nihuigou_sell['amount'] = -nihuigou_sell['amount']*(1+nihuigou_sell['price']/100/365)
         nihuigou_sell['date'] =  nihuigou_sell['date'].map(lambda x: \
-                self.net.index[np.searchsorted(self.net.index, x, 'left')+1]) 
+                np.nan if np.searchsorted(self.net.index, x, 'left')+1>=len(self.net.index) \
+                    else self.net.index[np.searchsorted(self.net.index, x, 'left')+1]) 
+        nihuigou_sell = nihuigou_sell.dropna(subset=['date'])
         nihuigou_sell['time'] = nihuigou_sell['date'] + datetime.timedelta(hours=8)  # T+1日8:00,逆回购变为现金
         self.nihuigou_deal = pd.concat([nihuigou_buy.set_index('time'), nihuigou_sell.set_index('time')])
         deal = pd.concat([deal, self.nihuigou_deal])
