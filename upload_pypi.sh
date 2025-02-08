@@ -1,5 +1,5 @@
 #!/bin/bash
-mypython=/Users/h1nlee/miniconda3/bin/python
+mypython=/Users/h1nlee/miniconda3/envs/gitenv/bin/python
 
 # Upload project to pypi
 
