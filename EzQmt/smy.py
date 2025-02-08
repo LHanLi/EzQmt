@@ -17,11 +17,11 @@ class account():
             self.end_date = net_file[-1].split('-')[1].split('.')[0]
         else:
             self.end_date = end_date
-        if type(benchmark)==type(None):
-            daterange = [pd.to_datetime(f.split('.')[0].split('-')[1]) for f in net_file]
-            self.benchmark = pd.DataFrame({0:0}, index=daterange)
-        else:
-            self.benchmark = benchmark
+        #if type(benchmark)==type(None):
+        #    daterange = [pd.to_datetime(f.split('.')[0].split('-')[1]) for f in net_file]
+        #    self.benchmark = pd.DataFrame({0:0}, index=daterange)
+        #else:
+        self.benchmark = benchmark
         self.conv_stk = conv_stk
         self.if_hide = if_hide
         self.renamestrat = renamestrat
@@ -414,17 +414,19 @@ class account():
         # 策略走势
         l, = ax.plot((plot_returns+1).cumprod(), c='C3', linewidth=2)
         lb.append(l)
-        # 基准走势
-        colors = ['C0', 'C1', 'C2', 'C4', 'C5', 'C6', 'C7', 'C8']
-        for i in range(len(benchmark.columns)):
-            benchmark_returns = benchmark.iloc[:, i].loc[self.net.index[0]:self.net.index[-1]]
-            l, = ax.plot((benchmark_returns+1).cumprod(), colors[i])
-            lb.append(l)
+        # 如果基准是0就不绘制了
+        if not type(benchmark)==type(None):
+            # 基准走势
+            colors = ['C0', 'C1', 'C2', 'C4', 'C5', 'C6', 'C7', 'C8']
+            for i in range(len(benchmark.columns)):
+                benchmark_returns = benchmark.iloc[:, i].loc[self.net.index[0]:self.net.index[-1]]
+                l, = ax.plot((benchmark_returns+1).cumprod(), colors[i])
+                lb.append(l)
         # 策略净资产
         ax2 = ax.twinx()
         l, = ax2.plot(equity/1e4, c='C3', alpha=0.5, ls='--')
         lb.append(l)
-        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+list(benchmark.columns)+\
+        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+ [] if type(benchmark)==type(None) else list(benchmark.columns)+\
                     [('组合总' if strat=='all' else '策略') +  '资产（右）'],\
                     bbox_to_anchor=(0.9, -0.2), ncol=3)
         ax.set_title('资金账号：%s****%s'%(str(self.accnum)[:4], str(self.accnum)[-4:]) if strat=='all' else\
