@@ -15,7 +15,7 @@ import pandas as pd
 # 6. sell_start_time执行2.3.4对应操作，卖出之前买入标的。
 
 # 基本设置
-ACCOUNT = '1010573702'            # 填写您的账号
+ACCOUNT = ''            # 填写您的账号
 account_type = 'STOCK'
 multiples = 10                                              # 可转债每手十张
 strategy_name = 'stratB01'                               # 策略名称
