@@ -11,25 +11,13 @@
 import EzQmt as qmt
 
 '''
-策略运行文件目录， 外部转入转出资金情况（格式：[('20250124', -10000), ]），开始/结束时间，业绩比较基准
-转债转股条款（格式：{转债代码:(股票代码，转股价), ...}），是否隐藏具体金额
-策略合并（{订单备注1：合并后策略名称a，...}）， 资金账号
+summary_loc: 策略运行文件目录， outcash_list: 外部转入转出资金情况（格式：[('20250124', -10000), ]），start_date/end_date: 开始/结束时间，benchmark: 业绩比较基准
+conv_stk: 转债转股条款（格式：{转债代码:(股票代码，转股价), ...}），if_hide: 是否隐藏具体金额
+renamestrat: 策略合并（{订单备注1：合并后策略名称a，...}）， accnum: 资金账号
 '''
 
-acct0 = qmt.smy.account(summary_loc, outcash_list=outcash_list, start_date=None, end_date=None, benchmark=benchmark,\
-            conv_stk={}, if_hide=True, renamestrat={}, accnum=accnum)
-                
-acct0.get_acct()
-
-acct0.get_pos()
-
-acct0.get_deal()
-
-acct0.cal_stratpos()
-
-acct0.cal_contri()
-
-acct0.strats
+acct0 = qmt.smy.account(summary_loc, outcash_list=[], start_date=None, end_date=None, benchmark=None,
+conv_stk={}, if_hide=True, renamestrat={}, accnum='')
 
 ### 总账户
 
