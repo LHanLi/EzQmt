@@ -26,6 +26,11 @@ class account():
         self.if_hide = if_hide
         self.renamestrat = renamestrat
         self.accnum = accnum
+        self.get_acct()
+        self.get_pos()
+        self.get_deal()
+        self.cal_stratpos()
+        self.cal_contri()
     # net=现金+证券持仓（包括逆回购）
     def get_acct(self):
         net_file = sorted([f for f in os.listdir(self.summary_loc) if ('acct' in f) and \
@@ -177,42 +182,45 @@ class account():
         subscrible_deal = deltapos.sub(net_deal, fill_value=0)
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
-        print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
-              '按申购新股/新债处理')
-        try:
-            subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
-        except:
-            print('请检查可转债转股信息是否添加', subscrible_deal['code'].unique())
-            return 
-        subscrible_deal['trade_type'] = subscrible_deal['vol'].map(lambda x: 48 if x>0 else 49)
-        subscrible_deal['time'] = subscrible_deal['date'].map(lambda x: x + datetime.timedelta(hours=9))
-        subscrible_deal['amount'] = -subscrible_deal['vol']*subscrible_deal['price']
-        subscrible_deal['time'] = subscrible_deal['date'] + \
-                subscrible_deal['vol'].map(lambda x: datetime.timedelta(hours=16 if x>0 else 9))
-        subscrible_deal['strat'] = 'craft'
-        self.subscrible_deal = subscrible_deal.set_index('time')        
-        # 主账号外持仓
-        self.out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
-        if not self.out_deal.empty:
-            print('存在Stock账号外持仓（港股通等）')
-            self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
-            self.out_deal['strat'] = '港股通等持仓'
-            if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
-                init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
-                init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
-                init_out_deal['trade_type'] = 48
-                init_out_deal['amount'] = -init_out_deal['MarketValue']
-                init_out_deal['strat'] = '港股通等持仓'
-                init_out_deal = init_out_deal.set_index('time')\
-                    [['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
-                self.out_deal = pd.concat([init_out_deal, self.out_deal])
-            deal = pd.concat([deal, self.out_deal])
-        # 全部订单
-        self.deal = pd.concat([deal, self.subscrible_deal]).sort_index()
+        if not subscrible_deal.empty:
+            print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
+                  '按申购新股/新债处理')
+            try:
+                subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
+            except:
+                print('请检查可转债转股信息是否添加', subscrible_deal['code'].unique())
+                return 
+            subscrible_deal['trade_type'] = subscrible_deal['vol'].map(lambda x: 48 if x>0 else 49)
+            subscrible_deal['time'] = subscrible_deal['date'].map(lambda x: x + datetime.timedelta(hours=9))
+            subscrible_deal['amount'] = -subscrible_deal['vol']*subscrible_deal['price']
+            subscrible_deal['time'] = subscrible_deal['date'] + \
+                    subscrible_deal['vol'].map(lambda x: datetime.timedelta(hours=16 if x>0 else 9))
+            subscrible_deal['strat'] = 'craft'
+            self.subscrible_deal = subscrible_deal.set_index('time')        
+            # 主账号外持仓，如果有的话需要
+            out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
+            if not out_deal.empty:
+                print('存在Stock账号外持仓（港股通等）')
+                self.subscrible_deal = self.subscrible_deal[self.subscrible_deal['code']!='unknown'].copy()
+                out_deal['strat'] = '港股通等持仓'
+                if self.net.index[0] in self.pos[self.pos['name']=='港股通等持仓'].index.get_level_values(0):
+                    init_out_deal = self.pos[self.pos['name']=='港股通等持仓'].loc[[self.net.index[0]], :].reset_index()
+                    init_out_deal['time'] = init_out_deal['date']+datetime.timedelta(hours=16)
+                    init_out_deal['trade_type'] = 48
+                    init_out_deal['amount'] = -init_out_deal['MarketValue']
+                    init_out_deal['strat'] = '港股通等持仓'
+                    init_out_deal = init_out_deal.set_index('time')\
+                        [['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
+                    self.out_deal = pd.concat([init_out_deal, out_deal])
+                deal = pd.concat([deal, self.out_deal])
+            # 全部订单
+            deal = pd.concat([deal, self.subscrible_deal])
+        self.deal = deal.sort_index()
         # 策略改名
         self.deal['strat'] = self.deal['strat'].map(lambda x: \
                 x if x not in self.renamestrat.keys() else self.renamestrat[x]) 
         self.strats = list(self.deal['strat'].unique())   # 运行中策略
+        print('当前运行中策略：%s'%(','.join(self.strats)))
     # 订单数据（包含转股信息）
     def get_order(self):
         pass 
@@ -244,15 +252,17 @@ class account():
                         set_index(['strat', 'code'])['vol']
                 net_deal = deal.groupby(['strat', 'code'])['vol'].sum()
                 todaystratpos = prestratpos.add(net_deal, fill_value=0)
-            # 如果有策略的某标的持仓为负，则该部分持仓归为持仓该标的数量最多的策略
+            # 如果有策略的某标的持仓为负，
             negpos = todaystratpos[todaystratpos<0].copy()
             while not negpos.empty:
                 #print('%s,策略持仓为负:'%date)
                 #print(negpos)
                 todaystratpos = todaystratpos[todaystratpos>0].copy()
+                # 归为持仓该标的数量最多的策略
                 code2strat = todaystratpos.sort_values(ascending=False).reset_index().drop_duplicates(subset=['code'])
                 code2strat = dict(zip(code2strat['code'], code2strat['strat']))
-                negpos = negpos.reset_index()
+                # 忽略负持仓所属策略
+                negpos = negpos.groupby('code').sum().reset_index()
                 negpos['strat'] = negpos['code'].map(lambda x: 'craft' if x not in code2strat.keys() else code2strat[x])
                 #print('该部分持仓归为:')
                 #print(todaystratpos)
