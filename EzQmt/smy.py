@@ -396,9 +396,7 @@ class account():
     def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
         end_date = self.df_contri[strat].index[-1]
-        if type(benchmark)==type(None):
-            benchmark = pd.DataFrame(pd.Series(0, index=self.benchmark.index)) 
-        elif benchmark=='default':
+        if benchmark=='default':
             benchmark = self.benchmark
         if strat=='all':
             equity = self.net['net']
