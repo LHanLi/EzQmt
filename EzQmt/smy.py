@@ -396,8 +396,9 @@ class account():
     def pnl(self, strat='all', benchmark='default'):
         start_date = self.df_contri[strat].index[0]
         end_date = self.df_contri[strat].index[-1]
-        if benchmark=='default':
-            benchmark = self.benchmark
+        if type(benchmark)==str:
+            if benchmark=='default':
+                benchmark = self.benchmark
         if strat=='all':
             equity = self.net['net']
             plot_returns = self.net['returns']
@@ -424,9 +425,9 @@ class account():
         ax2 = ax.twinx()
         l, = ax2.plot(equity/1e4, c='C3', alpha=0.5, ls='--')
         lb.append(l)
-        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+ [] if type(benchmark)==type(None) else list(benchmark.columns)+\
-                    [('组合总' if strat=='all' else '策略') +  '资产（右）'],\
-                    bbox_to_anchor=(0.9, -0.2), ncol=3)
+        plt.legend(lb, [('组合' if strat=='all' else '策略') + '收益',]+ \
+                   ([] if type(benchmark)==type(None) else list(benchmark.columns))+\
+                    [('组合总' if strat=='all' else '策略') +  '资产（右）'] , bbox_to_anchor=(0.9, -0.2), ncol=3)
         ax.set_title('资金账号：%s****%s'%(str(self.accnum)[:4], str(self.accnum)[-4:]) if strat=='all' else\
                         '策略：%s'%strat)
         ax2.set_ylabel('(万元)')
