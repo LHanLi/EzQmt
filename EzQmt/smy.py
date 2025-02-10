@@ -16,7 +16,7 @@ class account():
         if end_date==None:
             self.end_date = net_file[-1].split('-')[1].split('.')[0]
         else:
-            self.end_date = end_date
+            self.end_date = pd.to_datetime(end_date).strftime("%Y%m%d")
         #if type(benchmark)==type(None):
         #    daterange = [pd.to_datetime(f.split('.')[0].split('-')[1]) for f in net_file]
         #    self.benchmark = pd.DataFrame({0:0}, index=daterange)
