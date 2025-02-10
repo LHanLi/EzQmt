@@ -183,7 +183,8 @@ class account():
         subscrible_deal = subscrible_deal[subscrible_deal!=0]
         subscrible_deal = subscrible_deal.reset_index().rename(columns={0:'vol'})
         if not subscrible_deal.empty:
-            print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
+            if (set(subscrible_deal['code'])-set(['unknown']))!=set():
+                print('当前交割记录和持仓不匹配标的：', set(subscrible_deal['code'])-set(['unknown']), \
                   '按申购新股/新债处理')
             try:
                 subscrible_deal['price'] = subscrible_deal['code'].map(lambda x: self.pos.loc[:, x, :]['price'].iloc[0])
