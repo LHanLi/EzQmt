@@ -118,17 +118,19 @@ class account():
         deal['date'] = deal.index.map(lambda x :pd.to_datetime(x.date()))
         deal.loc[deal['strat'].isna(), 'strat'] = 'craft'  # 未备注标记为craft
         # 将转股委托变为成交订单   次日9：15卖出转债，买入股票
-        if self.conv_stk != {}:
-            order_file = sorted([f for f in os.listdir(self.summary_loc) if ('order' in f) and \
-                                    (f.split('-')[1].split('.')[0]>=self.start_date) and (f.split('-')[1].split('.')[0]<=self.end_date)])
-            order = []
-            for f in order_file:
-                date = f[-12:-4]
-                onedayorder = pd.read_csv(self.summary_loc+'/'+'order-%s.csv'%date)
-                order.append(onedayorder)
-            order = pd.concat(order)
-            # 48 未报， 49 待报， 50 已报， 51 已报待撤， 52 部成待撤， 53 部撤（剩余已撤单）， 54 已撤， 55 部成， 56 已成， 57 废单， 227 未知
-            conv_order = order[(order['price']==0)&(order['status']==50)].rename(columns={'remark':'strat'})
+        #if self.conv_stk != {}:
+        order_file = sorted([f for f in os.listdir(self.summary_loc) if ('order' in f) and \
+                                (f.split('-')[1].split('.')[0]>=self.start_date) and (f.split('-')[1].split('.')[0]<=self.end_date)])
+        order = []
+        for f in order_file:
+            date = f[-12:-4]
+            onedayorder = pd.read_csv(self.summary_loc+'/'+'order-%s.csv'%date)
+            order.append(onedayorder)
+        order = pd.concat(order)
+        # 48 未报， 49 待报， 50 已报， 51 已报待撤， 52 部成待撤， 53 部撤（剩余已撤单）， 54 已撤， 55 部成， 56 已成， 57 废单， 227 未知
+        conv_order = order[(order['price']==0)&(order['status']==50)].rename(columns={'remark':'strat'})
+        if not conv_order.empty:
+            print(conv_order)
             conv_order['strat'] = 'craft'
             conv_order['price'] = conv_order.apply(lambda x: self.pos.loc[str(x['date']), x['code']]['price'], axis=1) # 收盘价结算
             conv_order['vol'] = conv_order['sub_vol']
