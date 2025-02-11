@@ -287,23 +287,8 @@ class account():
         # 策略持仓/成交分仓/净资产/收益率
         self.split_strats = {} 
         for strat in self.strats:
-            #if strat=='all':
-            #    equity = self.net['net']
-            #    returns = self.net['returns']
-            #    self.split_strats[strat] = (self.stratpos.loc[[]], self.deal[self.deal['strat']==strat], \
-            #                                equity, returns)
-            #else:
-            #    equity = self.stratpos.loc[:, strat, :].groupby('date')['MarketValue'].sum().\
-            #            reindex(self.df_contri[strat].index).ffill()
-            #    returns = self.df_contri[strat].sum(axis=1)/equity
-            #    self.split_strats[strat] = (self.stratpos.loc[:, strat, :], self.deal[self.deal['strat']==strat],\
-            #                                equity, returns)
             try:
-                stratpos_ = self.stratpos.loc[:, strat, :]
-                equity = stratpos_.groupby('date')['MarketValue'].sum().\
-                        reindex(self.df_contri[strat].index).ffill()
-                returns = self.df_contri[strat].sum(axis=1)/equity
-                self.split_strats[strat] = (stratpos_, self.deal[self.deal['strat']==strat], equity, returns)
+                self.split_strats[strat] = (self.stratpos.loc[:, strat, :], self.deal[self.deal['strat']==strat], 0, np.nan)
             except:
                 self.split_strats[strat] = (self.stratpos.loc[[]], self.deal[self.deal['strat']==strat], 0, np.nan)
     # 获取所有策略按持仓归因收益
@@ -424,7 +409,8 @@ class account():
             equity = self.split_strats[strat][0].groupby('date')['MarketValue'].sum().\
                         reindex(self.df_contri[strat].index).ffill()
             plot_returns = self.df_contri[strat].sum(axis=1)/equity
-
+            self.split_strats[strat][2] = equity
+            self.split_strats[strat][3] = plot_returns 
         self.post0 = FB.post.ReturnsPost(plot_returns, benchmark)
         plt, fig, ax = FB.display.matplot()
         lb = []
