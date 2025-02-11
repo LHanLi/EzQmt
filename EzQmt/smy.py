@@ -12,7 +12,7 @@ class account():
         if start_date==None:
             self.start_date = net_file[0].split('-')[1].split('.')[0]
         else:
-            self.start_date = start_date.strftime("%Y%m%d")
+            self.start_date = pd.to_datetime(start_date).strftime("%Y%m%d")
         if end_date==None:
             self.end_date = net_file[-1].split('-')[1].split('.')[0]
         else:
