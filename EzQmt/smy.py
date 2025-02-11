@@ -288,9 +288,9 @@ class account():
         self.split_strats = {} 
         for strat in self.strats:
             try:
-                self.split_strats[strat] = (self.stratpos.loc[:, strat, :], self.deal[self.deal['strat']==strat], 0, np.nan)
+                self.split_strats[strat] = [self.stratpos.loc[:, strat, :], self.deal[self.deal['strat']==strat], 0, np.nan]
             except:
-                self.split_strats[strat] = (self.stratpos.loc[[]], self.deal[self.deal['strat']==strat], 0, np.nan)
+                self.split_strats[strat] = [self.stratpos.loc[[]], self.deal[self.deal['strat']==strat], 0, np.nan]
     # 获取所有策略按持仓归因收益
     def cal_contri(self):
         self.df_contri = {}
