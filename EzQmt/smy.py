@@ -130,7 +130,6 @@ class account():
         # 48 未报， 49 待报， 50 已报， 51 已报待撤， 52 部成待撤， 53 部撤（剩余已撤单）， 54 已撤， 55 部成， 56 已成， 57 废单， 227 未知
         conv_order = order[(order['price']==0)&(order['status']==50)].rename(columns={'remark':'strat'})
         if not conv_order.empty:
-            print(conv_order)
             conv_order['strat'] = 'craft'
             conv_order['price'] = conv_order.apply(lambda x: self.pos.loc[str(x['date']), x['code']]['price'], axis=1) # 收盘价结算
             conv_order['vol'] = conv_order['sub_vol']
