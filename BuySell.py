@@ -7,32 +7,28 @@ import pandas as pd
 #############################        自定义参数             ###########################################
 #######################################################################################################
 
-# 1. 每天buy_start_time前30s读取strat_file文件，获取目标调仓目标权重；
-# 2. buy_start_time计算各标的所需要买入交易金额，制定交易计划；
-# 3. buy_start_time开始交易，在end_time前结束交易；
-# 4. summary_time总结交易结果（该时点策略市值与持仓权重）；
-# 5. sell_start_time前30s读取之前买入标的数量；
-# 6. sell_start_time执行2.3.4对应操作，卖出之前买入标的。
+# 1. 根据策略文件买入；
+# 2. 卖出买入仓位。
 
 # 基本设置
-ACCOUNT = ''            # 填写您的账号
+ACCOUNT = '66666666'            # 填写您的账号
 account_type = 'STOCK'
 multiples = 10                                              # 可转债每手十张
-strategy_name = 'stratB01'                               # 策略名称
-logloc = 'D:/cloud/monitor/QMT/LogRunning/'                 # 您的日志文件位置
+strategy_name = 'strat'                               # 策略名称
+logloc = ''                 # 您的日志文件位置
 logfile = logloc + ACCOUNT + '-' + strategy_name + '.txt'  
-statfile = 'D:/cloud/monitor/QMT/stat/' + ACCOUNT + '/' + strategy_name + '.txt'
+statfile = '' + ACCOUNT + '/' + strategy_name + '.txt'   # 策略状态文件位置
 
 # 策略输入         
-stratfile_loc = 'D:/cloud/monitor/strat/'                    # 您的lude篮子文件存储位置
-stratfile_name = 'stratB01'                 # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
-buy_num = 3                               # 此排名内等权买入（如果是0则按策略文件权重买入）
+stratfile_loc = ''                    # 策略文件存储位置
+stratfile_name = strategy_name                 # 按照 strat_file_loc+日期（20240102)-strat_file_name 格式输入策略文件
+buy_num = 0                              # 此排名内等权买入（如果是0则按策略文件权重买入）
 
 # 交易设置
-strat_cap = 5e4           # 全部篮子标的目标市值
-buy_start_time = '145500'      # 开始交易时点
+strat_cap = 100e4           # 全部篮子标的目标市值
+buy_start_time = '093000'      # 开始交易时点
 buy_dur_time = 300             # 最长交易时间（秒）
-sell_start_time = '093000'      # 开始交易时点
+sell_start_time = '145000'      # 开始交易时点
 sell_dur_time = 300             # 最长交易时间（秒）
 interval = 30              # 每隔interval秒挂单一次
 wait_dur = interval*0.8    # 订单等待wait_dur秒后未成交撤单
@@ -48,16 +44,18 @@ buy_prepare_time = buy_prepare_time.strftime("%H%M%S")
 buy_end_time = datetime.datetime.strptime(buy_start_time, "%H%M%S")\
       + datetime.timedelta(seconds=buy_dur_time)
 buy_end_time = buy_end_time.strftime("%H%M%S")
-summary_time = datetime.datetime.strptime(buy_end_time, "%H%M%S")\
-      + datetime.timedelta(seconds=60)    # 交易结束后一分钟总结交易结果
-summary_time = summary_time.strftime("%H%M%S")
+buy_summary_time = datetime.datetime.strptime(buy_end_time, "%H%M%S")\
+      + datetime.timedelta(seconds=interval)    # 交易结束后interval总结交易结果
+buy_summary_time = buy_summary_time.strftime("%H%M%S")
 sell_prepare_time = datetime.datetime.strptime(sell_start_time, "%H%M%S")\
       + datetime.timedelta(seconds=-30)  # 交易前30s读取篮子文件
 sell_prepare_time = sell_prepare_time.strftime("%H%M%S")
 sell_end_time = datetime.datetime.strptime(sell_start_time, "%H%M%S")\
       + datetime.timedelta(seconds=sell_dur_time)
 sell_end_time = sell_end_time.strftime("%H%M%S")
-
+sell_summary_time = datetime.datetime.strptime(sell_end_time, "%H%M%S")\
+      + datetime.timedelta(seconds=interval)    # 交易结束后interval总结交易结果
+sell_summary_time = sell_summary_time.strftime("%H%M%S")
 
 
 #######################################################################################################
@@ -214,6 +212,8 @@ def cancel_order(C, wait_dur, stratname=None):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    if order.empty:
+        return
     # 属于该策略
     if stratname!=None:
         order = order[order['remark']==stratname].copy()
@@ -228,6 +228,8 @@ def cancel_order_price(C, r, stratname=None):
     order = get_order()
     # 全部可撤订单
     order = order[order['status'].map(lambda x:(x!=53)&(x!=54)&(x!=56)&(x!=57))].copy()
+    if order.empty:
+        return
     # 属于该策略
     if stratname!=None:
         order = order[order['remark']==stratname].copy()
@@ -286,13 +288,17 @@ def buy_prepare(C):
                             if f.split('.')[-2].split('-')[-1]==stratfile_name]
     strat_files = sorted(strat_files)
     strat_file = stratfile_loc + strat_files[-1]
-    df = pd.read_csv(strat_file, encoding='gbk')
+    df = pd.read_csv(strat_file, encoding='utf-8')
     log('读取策略文件', strat_file)
     print('读取策略文件', strat_file)
-    if buy_num!=0:
-        sorted_codes = (df['代码'].astype('str')+'.'+df['市场']).values           # 策略标的按打分排序
+    sorted_codes = (df['代码'].astype('str')+'.'+df['市场']).values           # 策略标的按打分排序
+    if buy_num==0:
+        print(df[['代码', '市场', 'name', 'weight']])
+        weights = pd.Series(df['weight'].values, index=sorted_codes)
+    else:
+        print(df[['代码', '市场', 'name']])
         weights = pd.Series(1, index=list(sorted_codes[:buy_num]))
-        weights = weights/weights.sum()
+    weights = weights/weights.sum()
     buy_cap = strat_cap*weights
     log('目标买入额')
     log(buy_cap)
@@ -307,11 +313,32 @@ def buy_prepare(C):
     # trader运行所需参数
     A.trade_vol = trade_vol 
     A.traded_vol = pd.Series(0, A.trade_vol.index)   # 已成交张数
-    A.remain_times = int(buy_dur_time/interval)  # 剩余挂单轮数
+    A.remain_times = int(buy_dur_time/interval-1)  # 剩余挂单轮数
     A.start_time = buy_start_time
     A.end_time = buy_end_time
     A.dur_time = buy_dur_time
     A.interval = interval
+    A.summary_time = buy_summary_time
+
+# 卖出
+def sell_prepare(C):
+    with open(statfile, 'r') as f:
+        r = f.readlines()
+    bought = {i.split(',')[0]:int(i.split(',')[1][:-1]) for i in r}
+    bought = pd.Series(bought)
+    log('昨夜买入：')
+    log(bought)
+    print('昨夜买入：')
+    print(bought)
+    # trader运行所需参数
+    A.trade_vol = -bought 
+    A.traded_vol = pd.Series(0, bought.index)   # 已成交张数
+    A.remain_times = int(sell_dur_time/interval-1)  # 剩余挂单轮数
+    A.start_time = sell_start_time
+    A.end_time = sell_end_time
+    A.dur_time = sell_dur_time
+    A.interval = interval
+    A.summary_time = sell_summary_time
 
 # 挂单员
 def trader(C):
@@ -327,7 +354,10 @@ def trader(C):
     trader_orders = get_order().reset_index()
     trader_orders = trader_orders[(trader_orders['remark']==strategy_name)&\
                         (trader_orders['sub_time']>A.start_time)&(trader_orders['sub_time']<A.end_time)]
-    trader_orders['dealt_vol'] = trader_orders['dealt_vol']*trader_orders['trade_type'].map(lambda x: 1 if x=='48' else -1)
+    undeal = trader_orders['sub_vol']*trader_orders['sub_time'].map(lambda x: 1 if x>'145700' else 0)*\
+                                        trader_orders['code'].map(lambda x: 1 if 'SZ' in x else 0)
+    trader_orders['dealt_vol'] = trader_orders['dealt_vol']+undeal   # SZ 交易所，1457之后未成交全部归为成交
+    trader_orders['dealt_vol'] = trader_orders['dealt_vol']*trader_orders['trade_type'].map(lambda x: 1 if x==48 else -1)
     A.traded_vol = (trader_orders.groupby('code')['dealt_vol'].sum()).reindex(A.traded_vol.index).fillna(0)
     log('策略已成交:')
     log(A.traded_vol)
@@ -343,8 +373,8 @@ def trader(C):
             continue
         mean_vol = abs(delta_vol)/A.remain_times  # 平均每次需要交易张数绝对值
         price = mid_snapshot.loc[code]
-        if abs(delta_vol*price)<delta_min:
-            log('与目标市值差距小于挂单金额，不交易')
+        if (abs(delta_vol*price)<delta_min)&(delta_vol>0):
+            log('买入与目标市值差距小于挂单金额，不交易')
             continue
         else:
             if mean_vol*price<delta_min:
@@ -373,44 +403,26 @@ def trader(C):
             #print('sell', code, price, vol)
     A.remain_times = A.remain_times-1
 
-# 大概率不成交的单子进行撤单
-def order_canceler(C):
-    cancel_order(C, wait_dur, strategy_name)
-    cancel_order_price(C, 0.01, strategy_name)
-
 # 交易情况总结
 def summary(C):
     trader_orders = get_order().reset_index()
     trader_orders = trader_orders[(trader_orders['remark']==strategy_name)&\
-                        (trader_orders['sub_time']>buy_start_time)&(trader_orders['sub_time']<summary_time)]
-    trader_orders['dealt_vol'] = trader_orders['dealt_vol']*trader_orders['trade_type'].map(lambda x: 1 if x=='48' else -1)
+                        (trader_orders['sub_time']>A.start_time)&(trader_orders['sub_time']<A.summary_time)]
+    trader_orders['dealt_vol'] = trader_orders['dealt_vol']*trader_orders['trade_type'].map(lambda x: 1 if x==48 else -1)
     traded_vol = trader_orders.groupby('code')['dealt_vol'].sum()
     traded_vol = traded_vol.loc[traded_vol.sort_values(ascending=False).index]
     log('成交')
     log(traded_vol)
+    print(traded_vol)
     with open(statfile, 'w') as f:
         for i,v in traded_vol.items():
             f.write(str(i)+','+str(v))
             f.write('\n')
 
-# 卖出
-def sell_prepare(C):
-    with open(statfile, 'r') as f:
-        r = f.readlines()
-    bought = {i.split(',')[0]:int(i.split(',')[1][:-1]) for i in r}
-    bought = pd.Series(bought)
-    log('昨夜买入：')
-    log(bought)
-    print('昨夜买入：')
-    print(bought)
-    # trader运行所需参数
-    A.trade_vol = -bought 
-    A.traded_vol = pd.Series(0, bought.index)   # 已成交张数
-    A.remain_times = int(sell_dur_time/interval)  # 剩余挂单轮数
-    A.start_time = sell_start_time
-    A.end_time = sell_end_time
-    A.dur_time = sell_dur_time
-    A.interval = interval
+# 大概率不成交的单子进行撤单
+def order_canceler(C):
+    cancel_order(C, wait_dur, strategy_name)
+    cancel_order_price(C, 0.01, strategy_name)
 
 
 # 初始化函数 主程序
@@ -422,13 +434,29 @@ def init(C):
     if buy_start_time<sell_start_time:
         if datetime.datetime.now().strftime("%H%M%S")<buy_start_time:
             buy_prepare(C)
-        elif datetime.datetime.now().strftime("%H%M%S")<sell_start_time:
+        elif (datetime.datetime.now().strftime("%H%M%S")>buy_end_time)&\
+                (datetime.datetime.now().strftime("%H%M%S")<sell_start_time):
+            A.start_time = buy_start_time
+            A.summary_time = buy_summary_time
+            summary(C)
             sell_prepare(C)
+        elif datetime.datetime.now().strftime("%H%M%S")>sell_end_time:
+            A.start_time = sell_start_time
+            A.summary_time = sell_summary_time
+            summary(C)
     else:
         if datetime.datetime.now().strftime("%H%M%S")<sell_start_time:
             sell_prepare(C)
-        elif datetime.datetime.now().strftime("%H%M%S")<buy_start_time:
+        elif (datetime.datetime.now().strftime("%H%M%S")>sell_end_time)&\
+               (datetime.datetime.now().strftime("%H%M%S")<buy_start_time):
+            A.start_time = sell_start_time
+            A.summary_time = sell_summary_time
+            summary(C)
             buy_prepare(C)
+        elif datetime.datetime.now().strftime("%H%M%S")>buy_end_time:
+            A.start_time = buy_start_time
+            A.summary_time = buy_summary_time
+            summary(C)
     # 交易时间运行装饰器 交易日start到start+dur
     def buy_trader_time(func):
         def wrapper(*args, **kwargs):
@@ -461,8 +489,8 @@ def init(C):
             today = datetime.datetime.now().date().strftime("%Y%m%d")
             now = datetime.datetime.now().time()
             if C.get_trading_dates('SH', today, today, 1, '1d'):
-                if (datetime.time(9, 15) <= now <= datetime.time(11, 30)) or \
-                    (datetime.time(13, 00) <= now <= datetime.time(15, 0, 7)):
+                if (datetime.time(9, 30) <= now <= datetime.time(11, 30)) or \
+                    (datetime.time(13, 00) <= now <= datetime.time(15, 0, 0)):
                     return func(*args, **kwargs)
                 else:
                     pass
@@ -489,14 +517,15 @@ def init(C):
     f1 = buy_trader_time(trader)
     C.run_time('f1', "%snSecond"%interval, "2022-08-01 09:15:00", "SH") # 交易员
     f_summary = trade_date(summary)
-    C.run_time('f_summary', "1d", "2022-08-01 %s:%s:%s"%(summary_time[:2], summary_time[2:4], summary_time[4:6]),\
+    C.run_time('f_summary', "1d", "2022-08-01 %s:%s:%s"%(buy_summary_time[:2], buy_summary_time[2:4], buy_summary_time[4:6]),\
                     "SH") # 记录买入数量
     C.run_time('sell_prepare', "1d", "2022-08-01 %s:%s:%s"%(sell_prepare_time[:2], sell_prepare_time[2:4], sell_prepare_time[4:6]),\
                     "SH") # 买入初始化函数
     f2 = sell_trader_time(trader)
     C.run_time('f2', "%snSecond"%interval, "2022-08-01 09:15:00", "SH") # 交易员
+    C.run_time('f_summary', "1d", "2022-08-01 %s:%s:%s"%(sell_summary_time[:2], sell_summary_time[2:4], sell_summary_time[4:6]),\
+                    "SH") # 记录卖出数量
     # 读取图形界面传入的ACCOUNT
     global ACCOUNT
     ACCOUNT = account if 'account' in globals() else ACCOUNT
-
 
