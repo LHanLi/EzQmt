@@ -5,7 +5,7 @@ import os,datetime
 
 class account():
     # 总结文件根目录，进出资金记录[('yyyy-mm-dd', 进出金额),..]，起止日期，业绩基准，转股信息（{转债代码：（股票代码，转股价）}，是否隐藏具体金额，策略合并
-    def __init__(self, summary_loc, outcash_list=[], start_date=None, end_date=None, benchmark=None, conv_stk={}, if_hide=False, renamestrat={}, accnum=8888888888):
+    def __init__(self, summary_loc, outcash_list=[], start_date=None, end_date=None, benchmark=None, conv_stk={}, if_hide=False, renamestrat={}, accnum=8888888888, initstratpos=True):
         self.summary_loc = summary_loc
         self.outcash_list = outcash_list
         net_file = sorted([f for f in os.listdir(self.summary_loc) if ('acct' in f)])
@@ -26,6 +26,7 @@ class account():
         self.if_hide = if_hide
         self.renamestrat = renamestrat
         self.accnum = accnum
+        self.initstratpos = initstratpos
         self.get_acct()
         self.get_pos()
         self.get_deal()
@@ -198,7 +199,7 @@ class account():
             subscrible_deal['time'] = subscrible_deal['date'] + \
                     subscrible_deal['vol'].map(lambda x: datetime.timedelta(hours=16 if x>0 else 9))
             subscrible_deal['strat'] = 'craft'
-            self.subscrible_deal = subscrible_deal.set_index('time')        
+            self.subscrible_deal = subscrible_deal.set_index('time')
             # 主账号外持仓，如果有的话需要
             out_deal = self.subscrible_deal[self.subscrible_deal['code']=='unknown'].copy()
             if not out_deal.empty:
@@ -213,8 +214,8 @@ class account():
                     init_out_deal['strat'] = '港股通等持仓'
                     init_out_deal = init_out_deal.set_index('time')\
                         [['date', 'code', 'trade_type', 'price', 'vol', 'amount', 'strat']]
-                    self.out_deal = pd.concat([init_out_deal, out_deal])
-                deal = pd.concat([deal, self.out_deal])
+                    out_deal = pd.concat([init_out_deal, out_deal])
+                deal = pd.concat([deal, out_deal])
             # 全部订单
             deal = pd.concat([deal, self.subscrible_deal])
         self.deal = deal.sort_index()
@@ -231,23 +232,39 @@ class account():
         for date in self.net.index:
             # 当日成交 
             deal = self.deal[self.deal['date']==date].copy()
-            # 首日持仓
+            # 确定首日持仓
             if date==self.net.index[0]:
-                todaystratpos = self.pos.loc[date]['vol']
-                net_deal = deal.groupby('code')['vol'].sum()
-                sell_deal = deal[deal['vol']<0].groupby('code')['vol'].sum()
-                buy_deal = deal[deal['vol']>0].groupby(['strat', 'code'])['vol'].sum()
-                # 推测前日持仓
-                prestratpos = todaystratpos.add(-net_deal, fill_value=0)
-                prestratpos = prestratpos[prestratpos!=0].copy()
-                # 当日先卖出后持仓全为craft
-                todaystratpos0 = prestratpos.add(sell_deal, fill_value=0)
-                todaystratpos0 = todaystratpos0.reset_index()
-                todaystratpos0['strat'] = 'craft'
-                todaystratpos0 = todaystratpos0.set_index(['strat', 'code'])['vol']
-                todaystratpos0 = todaystratpos0[todaystratpos0!=0].copy()
-                # 首日策略持仓
-                todaystratpos = todaystratpos0.add(buy_deal, fill_value=0)
+                if self.initstratpos:
+                    initstratpos = pd.read_csv(self.summary_loc+'init_stratpos.csv', header=None\
+                            ).rename(columns={0:'strat', 1:'code', 2:'vol'}).ffill()  # 所属策略空缺按上一行补齐
+                    initcodevol = initstratpos.groupby('code')['vol'].sum()  
+                    posinitvol = self.pos.loc[self.pos.index[0][0]].groupby('code')['vol'].sum()
+                    deltavol = posinitvol.sub(initcodevol, fill_value=0)
+                    deltavol = deltavol[deltavol!=0]
+                    deltavol = deltavol.reset_index()
+                    deltavol['strat'] = 'craft'   # 未标记持仓默认为craft
+                    initstratpos = pd.concat([initstratpos, deltavol])
+                    if deltavol['vol'].min()<0:
+                        print('error 策略持仓大于总持仓')
+                        return
+                    # 首日策略持仓
+                    todaystratpos = initstratpos.set_index(['strat', 'code'])['vol'] 
+                else:
+                    todaystratpos = self.pos.loc[date]['vol']
+                    net_deal = deal.groupby('code')['vol'].sum()
+                    sell_deal = deal[deal['vol']<0].groupby('code')['vol'].sum()
+                    buy_deal = deal[deal['vol']>0].groupby(['strat', 'code'])['vol'].sum()
+                    # 推测前日持仓
+                    prestratpos = todaystratpos.add(-net_deal, fill_value=0)
+                    prestratpos = prestratpos[prestratpos!=0].copy()
+                    # 当日先卖出后持仓全为craft
+                    todaystratpos0 = prestratpos.add(sell_deal, fill_value=0)
+                    todaystratpos0 = todaystratpos0.reset_index()
+                    todaystratpos0['strat'] = 'craft'
+                    todaystratpos0 = todaystratpos0.set_index(['strat', 'code'])['vol']
+                    todaystratpos0 = todaystratpos0[todaystratpos0!=0].copy()
+                    # 首日策略持仓
+                    todaystratpos = todaystratpos0.add(buy_deal, fill_value=0)
             else:
                 prestratpos = pd.read_csv(self.summary_loc+'/stratpos-'+\
                     self.net.index[np.searchsorted(self.net.index, date, side='left')-1].strftime("%Y%m%d")+'.csv').\
