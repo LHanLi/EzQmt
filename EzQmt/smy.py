@@ -77,7 +77,7 @@ class account():
         nihuigou['name'] = '逆回购'
         paichunihuigou = pos[~pos.index.get_level_values(1).isin(self.nihuigou_codes)].copy()
         pos = pd.concat([nihuigou, paichunihuigou]).sort_index()
-        # 如果总资产-现金-持仓 大于1，则表明有未知持仓（例如港股通）
+        # 如果总资产-现金-持仓 大于1，则表明有未知持仓（例如港股通） 如果ifout为False则认为总资产数据错误，进行修改
         unknown_value = self.net['net']-self.net['cash']-pos['MarketValue'].groupby('date').sum()
         if unknown_value.max()>1:
             unknown_value = unknown_value.reset_index().rename(columns={0:'MarketValue'})
