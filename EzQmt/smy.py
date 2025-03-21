@@ -5,7 +5,8 @@ import os,datetime
 
 class account():
     # 总结文件根目录，进出资金记录[('yyyy-mm-dd', 进出金额),..]，起止日期，业绩基准，转股信息（{转债代码：（股票代码，转股价）}，是否隐藏具体金额，策略合并
-    def __init__(self, summary_loc, outcash_list=[], start_date=None, end_date=None, benchmark=None, conv_stk={}, if_hide=False, renamestrat={}, accnum=8888888888, initstratpos=True):
+    def __init__(self, summary_loc, outcash_list=[], start_date=None, end_date=None, benchmark=None, conv_stk={}, if_hide=False,\
+                  renamestrat={}, accnum=8888888888, initstratpos=True, ifout=False):
         self.summary_loc = summary_loc
         self.outcash_list = outcash_list
         net_file = sorted([f for f in os.listdir(self.summary_loc) if ('acct' in f)])
@@ -27,6 +28,7 @@ class account():
         self.renamestrat = renamestrat
         self.accnum = accnum
         self.initstratpos = initstratpos
+        self.ifout = ifout
         self.get_acct()
         self.get_pos()
         self.get_deal()
@@ -79,18 +81,21 @@ class account():
         pos = pd.concat([nihuigou, paichunihuigou]).sort_index()
         # 如果总资产-现金-持仓 大于1，则表明有未知持仓（例如港股通） 如果ifout为False则认为总资产数据错误，进行修改
         unknown_value = self.net['net']-self.net['cash']-pos['MarketValue'].groupby('date').sum()
-        if unknown_value.max()>1:
-            unknown_value = unknown_value.reset_index().rename(columns={0:'MarketValue'})
-            unknown_value['code'] = 'unknown'
-            pos = pd.concat([pos, unknown_value.set_index(['date', 'code'])]).sort_index()
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'PositionCost'] = 0 
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'name'] = '港股通等持仓'
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'price'] = 1
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'vol'] =  \
-                    pos.loc[pos.index.get_level_values(1)=='unknown', 'MarketValue']
-        pos.loc[pos.index.get_level_values(1)=='unknown', 'AvailableVol'] = \
-            pos.loc[pos.index.get_level_values(1)=='unknown', 'vol']
-        pos = pos[pos['vol']>1].copy()
+        if self.ifout:
+            if unknown_value.max()>1:
+                unknown_value = unknown_value.reset_index().rename(columns={0:'MarketValue'})
+                unknown_value['code'] = 'unknown'
+                pos = pd.concat([pos, unknown_value.set_index(['date', 'code'])]).sort_index()
+            pos.loc[pos.index.get_level_values(1)=='unknown', 'PositionCost'] = 0 
+            pos.loc[pos.index.get_level_values(1)=='unknown', 'name'] = '港股通等持仓'
+            pos.loc[pos.index.get_level_values(1)=='unknown', 'price'] = 1
+            pos.loc[pos.index.get_level_values(1)=='unknown', 'vol'] =  \
+                        pos.loc[pos.index.get_level_values(1)=='unknown', 'MarketValue']
+            pos.loc[pos.index.get_level_values(1)=='unknown', 'AvailableVol'] = \
+                pos.loc[pos.index.get_level_values(1)=='unknown', 'vol']
+            pos = pos[pos['vol']>1].copy()
+        else:
+            print(unknown_value)
         # 将逆回购计为现金，添加总现金字段
         self.net['total_cash'] = self.net['cash'].add(\
                 pos[pos['name']=='逆回购'].groupby('date')['MarketValue'].sum(), fill_value=0)
